@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "configuration_engine"
+version = "0.1.0"
+description = "Deterministic configuration management for home automation devices"
+readme = "README.md"
+requires-python = ">=3.14"
+
+dependencies = [
+    "typer>=0.16",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+    "mypy",
+]
+
+[project.scripts]
+z2mcm = "configuration_engine.cli:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+strict = true
