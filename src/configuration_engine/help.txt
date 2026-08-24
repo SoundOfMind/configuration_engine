@@ -1,0 +1,133 @@
+Configuration Engine Help
+
+NAVIGATION
+Arrow keys        Move within the active list
+Enter             Select the highlighted item
+Tab/Shift-Tab     Switch between Devices and Commands or navigate buttons
+Esc               Go back / cancel
+?                 Open Help
+
+DEVICES
+R                 Refresh the device list
+
+Use R after adding or renaming a device in Zigbee2MQTT.
+The device list cannot be refreshed while a command is executing.
+
+COMMANDS
+profile list       View available profiles
+profiles compare   Compare two profiles
+device info        View device information
+device snapshot    View the current device state
+device analyze     Analyze device configuration
+device capture     Capture a device profile
+device compare     Compare a device with a profile
+device apply       Apply a profile and verify the result
+program setup      Edit Configuration Engine settings
+
+GENERAL
+Configuration Engine (CE) is designed to work with Home Assistant (HA),
+Zigbee2MQTT, and the Mosquitto MQTT broker.
+
+CE has been tested on Windows. Other operating systems and MQTT
+configurations have not been tested.
+
+CE does not replace Zigbee2MQTT for individual device settings. Keep
+Zigbee2MQTT available when configuring individual devices. Use CE to
+capture known-good configurations as profiles and apply those profiles
+to similar devices.
+
+SETUP
+The first time you run CE, you will be asked to set up the active
+configuration directory and MQTT connection settings.
+
+The `program setup` command can be used later to change these settings.
+
+Changing the configuration directory moves CE data files to the selected
+directory. Existing files in the destination are not overwritten.
+
+MQTT SETUP
+CE asks for:
+
+- MQTT host
+- MQTT port
+- MQTT username
+- MQTT password
+
+For the tested Home Assistant/Zigbee2MQTT setup, the MQTT username and
+password can be found by opening the Home Assistant Visual Studio Server
+app and using its Explorer tree to open:
+
+CONFIG/zigbee2mqtt/configuration.yaml
+
+Copy and paste these values into the corresponding CE setup fields.
+
+The MQTT port is generally 1883 in the tested configuration.
+
+FILES
+Configuration files and credentials are stored separately.
+
+The configuration directory contains:
+
+    config.yaml
+    credentials.yaml
+    profiles\
+
+Configuration files and credentials are protected as read-only files.
+
+Profiles contain reusable device configuration and are ordinary YAML files.
+Profiles can be backed up and shared.
+
+While CE is running, if you have added or renamed a device with Zigbee2MQTT,
+press R to refresh the device list. Refresh will not occur if you are
+executing a command.
+
+PROFILES
+A typical workflow is to create a base profile for a device model.
+
+1. Configure the device in Zigbee2MQTT.
+2. Use `device analyze` to examine the device configuration.
+3. Use `device capture` to create a profile.
+4. Give the profile a descriptive name.
+5. Use `device apply` with the base profile on another device
+   of the same model.
+6. CE automatically verifies the resulting configuration.
+7. Make any device-specific adjustments with Zigbee2MQTT.
+8. Turn the light off and use `device capture` to create another profile
+   if the adjusted configuration is worth keeping.
+
+Profiles can be compared with `profiles compare`, renamed, and deleted.
+Use `profile list` to view available profiles.
+
+USE CASE
+A typical use case for dimmers is to capture a base profile containing
+settings that you intend to apply to other devices with an identical
+model number.
+
+Turn the light off, then use `device capture` to create the profile.
+With different locations or different bulbs, you may want to alter
+settings such as the minimum brightness level.
+
+Initialize the next device by using `device apply` with the base profile.
+Make any desired changes with Zigbee2MQTT, turn the light off, and use
+`device capture` to create a new profile.
+
+You will develop a library of profiles, so use descriptive names.
+
+3-WAY / SWITCH-TYPE SETTINGS
+If your device has a 3-way setting, CE will attempt to avoid changing that
+setting. Analyze identifies this as a Preserved device property when it
+recognizes the setting.
+
+When using a device model that is new to CE, use Analyze to determine
+whether the 3-way setting is detected. If Analyze shows the setting as a
+Configuration property instead of a Preserved property, set the device
+to Single Pole in Zigbee2MQTT before capturing the profile.
+
+This helps prevent an unintended 3-way configuration from being included
+in the profile.
+
+After applying the profile, restore the required 3-way setting in
+Zigbee2MQTT if necessary.
+
+HELP
+Press ? at any time to return to this help screen.

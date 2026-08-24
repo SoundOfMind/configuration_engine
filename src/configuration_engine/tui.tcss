@@ -1,0 +1,194 @@
+Screen {
+    width: 100%;
+    height: 100%;
+}
+
+#main {
+    height: 1fr;
+}
+
+#devices {
+    width: 24;
+    border: solid $primary;
+}
+
+#command {
+    width: 1fr;
+    border: solid $primary;
+}
+
+.pane-title {
+    text-style: bold;
+    height: 1;
+    padding-left: 1;
+}
+
+#device-list {
+    height: 1fr;
+}
+
+#devices-instruction {
+    height: 2;
+    padding: 0 1;
+    text-style: bold;
+    color: yellow;
+}
+
+.device-success {
+    color: #00ff00;
+    text-style: bold;
+}
+
+.device-unavailable {
+    color: orange;
+}
+
+#command-title {
+    height: 2;
+    padding-left: 1;
+}
+
+#command-workspace {
+    height: 1fr;
+    min-height: 0;
+}
+
+#command-list {
+    height: 1fr;
+    min-height: 0;
+}
+
+#capture-form {
+    display: none;
+    height: 1fr;
+    min-height: 0;
+    padding: 1;
+}
+
+#capture-profile {
+    margin-bottom: 1;
+}
+
+#capture-device-value {
+    margin-bottom: 1;
+}
+
+#device-selector {
+    display: none;
+    height: 1fr;
+    min-height: 0;
+    padding: 1;
+}
+
+#capture-device-list {
+    height: 1fr;
+    min-height: 0;
+}
+
+#profile-selector {
+    display: none;
+    height: 1fr;
+    min-height: 0;
+    padding: 1;
+}
+
+#compare-profile-list {
+    height: 1fr;
+    min-height: 0;
+}
+
+#profile-list {
+    display: none;
+    height: 1fr;
+    min-height: 0;
+    padding: 1;
+}
+
+#profile-list-view {
+    height: 1fr;
+    min-height: 0;
+}
+
+#profile-view {
+    display: none;
+    height: 1fr;
+    min-height: 0;
+}
+
+#profile-content {
+    height: auto;
+    padding: 0 1;
+    content-align: left top;
+}
+
+#profile-rename-input {
+    display: none;
+}
+
+#help-view {
+    display: none;
+    height: 1fr;
+    min-height: 0;
+}
+
+#snapshot-view {
+    display: none;
+    height: 1fr;
+    min-height: 0;
+}
+
+#snapshot-content {
+    height: auto;
+    padding: 0 1;
+    content-align: left top;
+}
+
+#compare-view {
+    display: none;
+    height: 1fr;
+    min-height: 0;
+}
+
+#instruction {
+    height: 2;
+    padding: 0 1;
+    text-style: bold;
+    color: yellow;
+}
+
+Button.-style-default {
+    height: 3;
+    min-width: 20;
+    padding: 0 2;
+    background: #bfbfbf;
+    color: #000000;
+    border: solid #707070;
+}
+
+Button.-style-default:hover {
+    background: #d9d9d9;
+    color: #000000;
+    border: solid #606060;
+}
+
+Button.-style-default:focus {
+    background: #d9d9d9;
+    color: #000000;
+    border: solid #404040;
+}
+
+Button.-style-default.-active {
+    background: #a8a8a8;
+    color: #000000;
+    border: solid #606060;
+}
+
+Button.-style-default:disabled {
+    background: #a0a0a0;
+    color: #606060;
+    border: solid #808080;
+}
+
+.active-command {
+    color: cyan;
+}

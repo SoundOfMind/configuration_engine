@@ -1,0 +1,87 @@
+vendor: Inovelli
+model: VZM31-SN
+values:
+  state: 'OFF'
+  brightness: 2
+  dimmingSpeedUpRemote: 22
+  dimmingSpeedUpLocal: 22
+  rampRateOffToOnRemote: 22
+  rampRateOffToOnLocal: 22
+  dimmingSpeedDownRemote: 22
+  dimmingSpeedDownLocal: 22
+  rampRateOnToOffRemote: 22
+  rampRateOnToOffLocal: 22
+  invertSwitch: 'No'
+  autoTimerOff: 0
+  defaultLevelLocal: 74
+  defaultLevelRemote: 74
+  stateAfterPowerRestored: 0
+  loadLevelIndicatorTimeout: 5 Seconds
+  switchType: Single Pole
+  overheat: No Alert
+  buttonDelay: 200ms
+  deviceBindNumber: 0
+  smartBulbMode: Disabled
+  doubleTapUpToParam55: Enabled
+  doubleTapDownToParam56: Enabled
+  brightnessLevelForDoubleTapUp: 254
+  brightnessLevelForDoubleTapDown: 2
+  ledColorWhenOn: 85
+  ledColorWhenOff: 255
+  ledIntensityWhenOn: 0
+  ledIntensityWhenOff: 0
+  singleTapBehavior: Old Behavior
+  lowLevelForFanControlMode: 63
+  mediumLevelForFanControlMode: 128
+  highLevelForFanControlMode: 254
+  ledColorForFanControlMode: 212
+  auxSwitchUniqueScenes: Disabled
+  localProtection: Disabled
+  remoteProtection: Disabled
+  onOffLedMode: All
+  firmwareUpdateInProgressIndicator: Enabled
+  defaultLed1ColorWhenOn: 255
+  defaultLed1ColorWhenOff: 255
+  defaultLed1IntensityWhenOn: 101
+  defaultLed1IntensityWhenOff: 101
+  defaultLed2ColorWhenOn: 255
+  defaultLed2ColorWhenOff: 255
+  defaultLed2IntensityWhenOn: 101
+  defaultLed2IntensityWhenOff: 101
+  defaultLed3ColorWhenOn: 255
+  defaultLed3ColorWhenOff: 255
+  defaultLed3IntensityWhenOn: 101
+  defaultLed3IntensityWhenOff: 101
+  defaultLed4ColorWhenOn: 255
+  defaultLed4ColorWhenOff: 255
+  defaultLed4IntensityWhenOn: 101
+  defaultLed4IntensityWhenOff: 101
+  defaultLed5ColorWhenOn: 255
+  defaultLed5ColorWhenOff: 255
+  defaultLed5IntensityWhenOn: 101
+  defaultLed5IntensityWhenOff: 101
+  defaultLed6ColorWhenOn: 255
+  defaultLed6ColorWhenOff: 255
+  defaultLed6IntensityWhenOn: 101
+  defaultLed6IntensityWhenOff: 101
+  defaultLed7ColorWhenOn: 255
+  defaultLed7ColorWhenOff: 255
+  defaultLed7IntensityWhenOn: 101
+  defaultLed7IntensityWhenOff: 101
+  doubleTapClearNotifications: Enabled (Default)
+  fanLedLevelType: 0
+  minimumLevel: 1
+  maximumLevel: 255
+  powerType: Neutral
+  outputMode: Dimmer
+  ledBarScaling: Gen3 method (VZM-style)
+  activePowerReports: 10
+  periodicPowerAndEnergyReports: 3600
+  activeEnergyReports: 10
+  quickStartTime: 0
+  quickStartLevel: 254
+  higherOutputInNonNeutral: Disabled (default)
+  dimmingMode: Trailing edge
+  relayClick: Disabled (Click Sound On)
+  identify: null
+  energy_reset: null

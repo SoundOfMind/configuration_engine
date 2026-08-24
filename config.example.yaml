@@ -1,0 +1,11 @@
+backend:
+  name: zigbee2mqtt
+
+mqtt:
+  host: localhost
+  port: 1883
+
+defaults:
+  timeout: 45.0
+
+mqtt_get_properties: {}
