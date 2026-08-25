@@ -170,10 +170,7 @@ class FirstRunScreen(ModalScreen[Path | None]):
             ],
         )
 
-        self.query_one(
-            "#change-directory",
-            Button,
-        ).focus()
+        self._focus_after_refresh("#change-directory", Button)
 
     def show_mqtt_step(self) -> None:
         """Display the MQTT configuration step."""
@@ -313,10 +310,19 @@ class FirstRunScreen(ModalScreen[Path | None]):
             ],
         )
 
-        self.query_one(
-            "#confirmation-save",
-            Button,
-        ).focus()
+        self._focus_after_refresh("#confirmation-save", Button)
+
+    def _focus_after_refresh(
+        self,
+        selector: str,
+        widget_type: type[Widget],
+    ) -> None:
+        """Focus a newly mounted widget after the next refresh."""
+
+        def focus_widget() -> None:
+            self.query_one(selector, widget_type).focus()
+
+        self.call_after_refresh(focus_widget)
 
     def _replace_controls(
         self,
@@ -443,10 +449,7 @@ class FirstRunScreen(ModalScreen[Path | None]):
             ],
         )
 
-        self.query_one(
-            "#setup-directory",
-            Input,
-        ).focus()
+        self._focus_after_refresh("#setup-directory", Input)
 
     def next_step(self) -> None:
         """Advance to the next setup step."""

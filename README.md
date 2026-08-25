@@ -145,8 +145,8 @@ After applying a profile, verify the device and make any required device-specifi
 
 The release includes two example profiles:
 
-- Inovelli VZM31-SN — dimmer
-- Inovelli VZM35-SN — 3-speed ceiling fan
+- Inovelli VZM31-SN Dimmer Example.yaml
+- Inovelli VZM35-SN 3 Speed Fan Control Example.yaml
 
 These examples demonstrate how Configuration Engine represents reusable device configuration as YAML.
 
@@ -158,11 +158,11 @@ Press `?` to open Help.
 
 Basic navigation:
 
-- Arrow keys — move within the active list
-- Enter — select the highlighted item
-- Tab / Shift-Tab — switch between Devices and Commands or navigate buttons
-- Esc — go back / cancel
-- `?` — open Help
+- Arrow keys - move within the active list
+- Enter - select the highlighted item
+- Tab / Shift-Tab - switch between Devices and Commands or navigate buttons
+- Esc - go back / cancel
+- `?` - open Help
 
 Press `R` to refresh the device list after adding or renaming a device in Zigbee2MQTT.
 

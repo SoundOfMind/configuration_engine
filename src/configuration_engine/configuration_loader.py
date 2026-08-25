@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import stat
+import sys
 import tempfile
 import types
 from pathlib import Path
@@ -30,16 +31,16 @@ class _FileLock:
 
         self._stream.seek(0)
 
-        if os.name == "nt":
+        if sys.platform == "win32":
             import msvcrt
 
             msvcrt.locking(self._stream.fileno(), msvcrt.LK_LOCK, 1)
         else:
             import fcntl
 
-            fcntl.flock(  # type: ignore[attr-defined]
+            fcntl.flock(
                 self._stream.fileno(),
-                fcntl.LOCK_EX,  # type: ignore[attr-defined]
+                fcntl.LOCK_EX,
             )
 
         return self
@@ -55,7 +56,7 @@ class _FileLock:
 
         assert self._stream is not None
 
-        if os.name == "nt":
+        if sys.platform == "win32":
             import msvcrt
 
             self._stream.seek(0)
@@ -63,9 +64,9 @@ class _FileLock:
         else:
             import fcntl
 
-            fcntl.flock(  # type: ignore[attr-defined]
+            fcntl.flock(
                 self._stream.fileno(),
-                fcntl.LOCK_UN,  # type: ignore[attr-defined]
+                fcntl.LOCK_UN,
             )
 
         self._stream.close()
