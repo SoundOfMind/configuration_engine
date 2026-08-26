@@ -1,0 +1,22 @@
+Inovelli Examples Profile Notes
+
+1. Both devices use green for the LED display.  The display turns off after 5 seconds.
+2. VZM31-SN dimmer settings:
+  a. defaultLevelLocal and defaultLevelRemote are set at 74, medium brightness.
+  b. doubleTapUpToParam55 and doubleTapUpToParam56 are both enabled.
+  c. minimumLevel = 61.  This dimmest setting may well be high for your installation, but the goal of this example is to initially avoid failure for your device.  Try lower settings for minimumLevel, but test with the light off, ensuring that your bulb lights with a double tap down.
+  d. brightnessLevelForDoubleTapUp = 254, as some devices refuse 255.
+  e. brightnessLevelForDoubleTapDown = 2, the lowest value that worked for me.
+  f. With these settings, actions are as described below:
+     Click sequence           Previously off           Previously on
+     2x click up              brightest                brightest
+     2x click down            dimmest                  dimmest
+     1x click up              medium                   no change
+     1x click down            stays off                off
+     hold up                  moves to brightest       moves to brightest
+     hold down                stays off                moves to dimmest
+3. The VZM35-SN fan control is configured to power a conventional AC powered 3 speed fan with outputMode = Ceiling Fan (3-Speed).  Other settings:
+  a. lowLevelForFanControlMode = 63, mediumLevelForFanControlMode = 128 and highLevelForFanControlMode = 254 - factory defaults.
+  b. defaultLevelLocal and defaultLevelRemote are set to 63, so the fan will always start at low speed from a stop.
+  c. quickStartTime = 4 gives a quick start.  The range is 0 (no quick start) to 60 (60 sixtieths of a second, meaning 1 second).  60 behaves the same as 0 and some other values like 20 are refused.  A setting of 4, which should only give it 4/60 (0.067 seconds) of full speed power, seems illogical but works for my setup.
+  d. Some dimmer-related parameters are also included in this profile because the fan control can, under certain circumstances, control dimming. These values were brought over from the dimmer configuration even though this installation is not using the fan controller to control a light.

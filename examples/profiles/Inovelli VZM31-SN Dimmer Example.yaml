@@ -2,7 +2,7 @@ vendor: Inovelli
 model: VZM31-SN
 values:
   state: 'OFF'
-  brightness: 2
+  brightness: 254
   dimmingSpeedUpRemote: 22
   dimmingSpeedUpLocal: 22
   rampRateOffToOnRemote: 22
@@ -70,7 +70,7 @@ values:
   defaultLed7IntensityWhenOff: 101
   doubleTapClearNotifications: Enabled (Default)
   fanLedLevelType: 0
-  minimumLevel: 1
+  minimumLevel: 61
   maximumLevel: 255
   powerType: Neutral
   outputMode: Dimmer
