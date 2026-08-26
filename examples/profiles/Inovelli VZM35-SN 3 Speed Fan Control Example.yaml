@@ -11,8 +11,8 @@ values:
   rampRateOnToOffLocal: 22
   invertSwitch: 'No'
   autoTimerOff: 0
-  defaultLevelLocal: 47
-  defaultLevelRemote: 47
+  defaultLevelLocal: 63
+  defaultLevelRemote: 63
   stateAfterPowerRestored: 0
   loadLevelIndicatorTimeout: 5 Seconds
   switchType: Single Pole
@@ -22,8 +22,8 @@ values:
   smartBulbMode: Disabled
   doubleTapUpToParam55: Disabled
   doubleTapDownToParam56: Disabled
-  brightnessLevelForDoubleTapUp: 255
-  brightnessLevelForDoubleTapDown: 1
+  brightnessLevelForDoubleTapUp: 254
+  brightnessLevelForDoubleTapDown: 61
   ledColorWhenOn: 85
   ledColorWhenOff: 255
   ledIntensityWhenOn: 0
@@ -68,9 +68,9 @@ values:
   defaultLed7IntensityWhenOff: 101
   fanTimerMode: Disabled
   doubleTapClearNotifications: Enabled (Default)
-  fanLedLevelType: 10
+  fanLedLevelType: 0
   minimumLevel: 1
-  maximumLevel: 16
+  maximumLevel: 255
   powerType: Neutral
   outputMode: Ceiling Fan (3-Speed)
   quickStartTime: 4
