@@ -1,7 +1,10 @@
 import asyncio
 from unittest.mock import Mock, patch
 
+from textual.containers import VerticalScroll
+
 from configuration_engine.device_summary import DeviceSummary
+from configuration_engine.profile import Profile
 from configuration_engine.tui import Command, ConfigurationApp
 
 
@@ -365,4 +368,47 @@ async def _test_command_list_uses_command_ids() -> None:
 def test_command_list_uses_command_ids() -> None:
     asyncio.run(
         _test_command_list_uses_command_ids(),
+    )
+
+
+async def _test_profile_content_scrolls_immediately() -> None:
+    app = ConfigurationApp()
+
+    profile = Profile(
+        vendor="Test Vendor",
+        model="Test Model",
+        values={f"property_{index:02d}": index for index in range(30)},
+    )
+
+    with patch(
+        "configuration_engine.tui.ProfileRepository.read",
+        return_value=profile,
+    ):
+        async with app.run_test() as pilot:
+            app.profile_list_profile = "Profile One"
+
+            app.show_profile()
+
+            await pilot.pause()
+
+            profile_content_view = app.query_one(
+                "#profile-content-view",
+                VerticalScroll,
+            )
+
+            assert profile_content_view.has_focus
+
+            initial_scroll_target_y = profile_content_view.scroll_target_y
+
+            profile_content_view.scroll_down(
+                animate=False,
+                immediate=True,
+            )
+
+            assert profile_content_view.scroll_target_y > initial_scroll_target_y
+
+
+def test_profile_content_scrolls_immediately() -> None:
+    asyncio.run(
+        _test_profile_content_scrolls_immediately(),
     )

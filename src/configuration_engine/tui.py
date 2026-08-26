@@ -575,6 +575,14 @@ class ConfigurationApp(App[None]):
         self.query_one("#profile-list").display = False
         self.query_one("#profile-view").display = True
 
+        profile_content_view = self.query_one(
+            "#profile-content-view",
+            VerticalScroll,
+        )
+
+        profile_content_view.scroll_home(animate=False)
+        profile_content_view.focus()
+
         self.update_instruction(
             "N: Rename   D: Delete   Esc: Back",
         )
