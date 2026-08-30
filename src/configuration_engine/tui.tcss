@@ -8,7 +8,7 @@ Screen {
 }
 
 #devices {
-    width: 24;
+    width: 32;
     border: solid $primary;
 }
 
