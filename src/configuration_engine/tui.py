@@ -2723,8 +2723,46 @@ class ConfigurationApp(App[None]):
             )
 
             self.snapshot_device = None
-            self.active_command = None
-            self.command_progress = CommandProgress.INACTIVE
+
+            return
+
+        # ------------------------------------------------------------
+        # Snapshot device selection -> command list
+        # ------------------------------------------------------------
+
+        if (
+            self.active_command == Command.DEVICE_SNAPSHOT
+            and self.snapshot_device is not None
+            and not snapshot_view.display
+            and not selector.display
+        ):
+            self._return_to_command_list(
+                command_list,
+                Command.DEVICE_SNAPSHOT,
+                "#command-device_snapshot",
+            )
+
+            self.snapshot_device = None
+
+            return
+
+        # ------------------------------------------------------------
+        # Info device selection -> command list
+        # ------------------------------------------------------------
+
+        if (
+            self.active_command == Command.DEVICE_INFO
+            and self.snapshot_device is not None
+            and not snapshot_view.display
+            and not selector.display
+        ):
+            self._return_to_command_list(
+                command_list,
+                Command.DEVICE_INFO,
+                "#command-device_info",
+            )
+
+            self.snapshot_device = None
 
             return
 
