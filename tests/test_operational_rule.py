@@ -28,7 +28,7 @@ def test_state_is_operational() -> None:
         include=True,
         confidence=Confidence.CERTAIN,
         reason=RecommendationReason.OPERATIONAL,
-        apply=True,
+        apply=False,
     )
 
 

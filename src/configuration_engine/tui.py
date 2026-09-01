@@ -80,11 +80,13 @@ class ConfigurationApp(App[None]):
         self.help_previous_instruction: str | None = None
         self.command_progress = CommandProgress.INACTIVE
         self.operation_abandoned = False
+        self.operation_task: asyncio.Task[None] | None = None
         self.devices: list[DeviceSummary] = []
         self.device_status: dict[str, str] = {}
         self.active_command: Command | None = None
         self.profile_rename_active = False
         self.profile_delete_active = False
+        self.compare_model_mismatch_pending = False
 
         self.configuration_directory = active_configuration_directory()
 
@@ -1367,6 +1369,7 @@ class ConfigurationApp(App[None]):
             ListItem,
         ).add_class("active-command")
 
+        self.compare_model_mismatch_pending = False
         self.compare_device = None
         self.compare_profile = None
 
@@ -1547,6 +1550,34 @@ class ConfigurationApp(App[None]):
             return
 
         apply_device = self.apply_device
+        repository = self.profile_repository()
+
+        try:
+            profile = repository.read(
+                self.apply_profile,
+            )
+        except (
+            OSError,
+            ValueError,
+        ) as exc:
+            self.show_operation_failure(
+                f"Unable to read profile: {exc}",
+            )
+            return
+
+        device_model = None
+
+        for device in self.devices:
+            if device.friendly_name == apply_device:
+                device_model = device.model_id
+                break
+
+        if device_model is not None and profile.model is not None and device_model != profile.model:
+            self.update_instruction(
+                f"Cannot apply profile.\n"
+                f"Device model: {device_model}   Profile model: {profile.model}",
+            )
+            return
 
         self.update_instruction(
             "Please wait... Note that Esc is ignored until the command completes.",
@@ -1554,18 +1585,12 @@ class ConfigurationApp(App[None]):
 
         await asyncio.sleep(0)
 
-        self.command_progress = CommandProgress.WAITING_FOR_READ
+        self.operation_in_progress = True
         self.operation_abandoned = False
 
         try:
             engine = ConfigurationEngine.from_file(
                 self.configuration_path(),
-            )
-
-            repository = self.profile_repository()
-
-            profile = repository.read(
-                self.apply_profile,
             )
 
             def update_apply_progress(message: str) -> None:
@@ -2515,7 +2540,10 @@ class ConfigurationApp(App[None]):
                     return
 
                 event.prevent_default()
-                await self.show_info()
+                self.operation_task = asyncio.create_task(
+                    self.show_info(),
+                )
+
                 return
 
             case Command.DEVICE_SNAPSHOT:
@@ -2523,7 +2551,10 @@ class ConfigurationApp(App[None]):
                     return
 
                 event.prevent_default()
-                await self.show_snapshot()
+                self.operation_task = asyncio.create_task(
+                    self.show_snapshot(),
+                )
+
                 return
 
             case Command.DEVICE_ANALYZE:
@@ -2531,15 +2562,47 @@ class ConfigurationApp(App[None]):
                     return
 
                 event.prevent_default()
-                await self.show_analyze()
+                self.operation_task = asyncio.create_task(
+                    self.show_analyze(),
+                )
+
                 return
 
             case Command.DEVICE_COMPARE:
                 if self.compare_profile is None:
                     return
 
+                if self.compare_model_mismatch_pending:
+                    self.compare_model_mismatch_pending = False
+
+                    event.prevent_default()
+                    await self.show_compare()
+                    return
+
+                device_model, profile_model = self._get_compare_models()
+
+                if (
+                    device_model is not None
+                    and profile_model is not None
+                    and device_model != profile_model
+                ):
+                    self.compare_model_mismatch_pending = True
+
+                    self.update_instruction(
+                        f"Device model is {device_model}; "
+                        f"profile model is {profile_model}.\n"
+                        "Models differ. Press Enter to compare anyway "
+                        "or Esc to cancel.",
+                    )
+
+                    event.prevent_default()
+                    return
+
                 event.prevent_default()
-                await self.show_compare()
+                self.operation_task = asyncio.create_task(
+                    self.show_compare(),
+                )
+
                 return
 
             case Command.DEVICE_APPLY:
@@ -2558,7 +2621,10 @@ class ConfigurationApp(App[None]):
                     return
 
                 event.prevent_default()
-                await self.capture_profile()
+                self.operation_task = asyncio.create_task(
+                    self.capture_profile(),
+                )
+
                 return
 
     def _leave_running_operation(self) -> None:
@@ -2577,6 +2643,11 @@ class ConfigurationApp(App[None]):
 
         self.operation_abandoned = True
 
+        if self.operation_task is not None and not self.operation_task.done():
+            self.operation_task.cancel()
+
+        self.operation_task = None
+
         command_list = self.query_one(
             "#command-list",
             ListView,
@@ -2587,6 +2658,38 @@ class ConfigurationApp(App[None]):
             command,
             f"#command-{command.name.lower()}",
         )
+
+    def _get_compare_models(
+        self,
+    ) -> tuple[str | None, str | None]:
+        """Return the selected device and profile model numbers."""
+
+        device_model = None
+
+        if self.compare_device is not None:
+            for device in self.devices:
+                if device.friendly_name == self.compare_device:
+                    device_model = device.model_id
+                    break
+
+        profile_model = None
+
+        if self.compare_profile is not None:
+            repository = self.profile_repository()
+
+            try:
+                profile = repository.read(
+                    self.compare_profile,
+                )
+            except (
+                OSError,
+                ValueError,
+            ):
+                return device_model, None
+
+            profile_model = profile.model
+
+        return device_model, profile_model
 
     async def action_back(self) -> None:
         """Return to the previous interface level."""
@@ -2694,6 +2797,7 @@ class ConfigurationApp(App[None]):
             self.query_one("#command-title").display = False
 
             self.snapshot_device = None
+            self.compare_model_mismatch_pending = False
             self.compare_device = None
             self.compare_profile = None
             self.apply_device = None
@@ -3010,6 +3114,7 @@ class ConfigurationApp(App[None]):
                 "#command-device_compare",
             )
 
+            self.compare_model_mismatch_pending = False
             self.compare_device = None
             self.compare_profile = None
 
@@ -3031,6 +3136,7 @@ class ConfigurationApp(App[None]):
                 "#command-device_compare",
             )
 
+            self.compare_model_mismatch_pending = False
             self.compare_device = None
             self.compare_profile = None
 
@@ -3049,14 +3155,34 @@ class ConfigurationApp(App[None]):
                 "#command-device_compare",
             )
 
+            self.compare_model_mismatch_pending = False
             self.compare_device = None
             self.compare_profile = None
 
             return
 
         # ------------------------------------------------------------
-        # Device Apply selection -> command list before apply
+        # Device Apply device selection -> command list
         # ------------------------------------------------------------
+
+        if (
+            self.active_command == Command.DEVICE_APPLY
+            and self.apply_device is not None
+            and self.apply_profile is None
+            and not compare_view.display
+        ):
+            profile_selector.display = False
+
+            self._return_to_command_list(
+                command_list,
+                Command.DEVICE_APPLY,
+                "#command-device_apply",
+            )
+
+            self.apply_device = None
+            self.apply_profile = None
+
+            return
 
         if (
             self.active_command == Command.DEVICE_APPLY
@@ -3177,6 +3303,7 @@ class ConfigurationApp(App[None]):
 
             self.snapshot_device = None
 
+            self.compare_model_mismatch_pending = False
             self.compare_device = None
             self.compare_profile = None
 
