@@ -256,7 +256,7 @@ class ConfigurationApp(App[None]):
                 )
 
                 yield Static(
-                    "Tab: switch window   R: refresh",
+                    "Tab: switch window\nR: refresh",
                     id="devices-instruction",
                 )
 
@@ -813,11 +813,11 @@ class ConfigurationApp(App[None]):
         if self.capture_device is None:
             return
 
-        self.update_capture_instruction("Please wait...")
-        await asyncio.sleep(0)
-
         self.command_progress = CommandProgress.WAITING_FOR_READ
         self.operation_abandoned = False
+
+        self.update_capture_instruction("Please wait...")
+        await asyncio.sleep(0)
 
         try:
             engine = ConfigurationEngine.from_file(
@@ -854,8 +854,8 @@ class ConfigurationApp(App[None]):
             return
 
         if self.operation_abandoned:
-            self.operation_abandoned = False
             self.command_progress = CommandProgress.INACTIVE
+            self.operation_abandoned = False
             return
 
         self.command_progress = CommandProgress.COMMAND_COMPLETE
@@ -980,11 +980,11 @@ class ConfigurationApp(App[None]):
         if self.snapshot_device is None:
             return
 
-        self.update_instruction("Please wait...")
-        await asyncio.sleep(0)
-
         self.command_progress = CommandProgress.WAITING_FOR_READ
         self.operation_abandoned = False
+
+        self.update_instruction("Please wait...")
+        await asyncio.sleep(0)
 
         try:
             engine = ConfigurationEngine.from_file(self.configuration_path())
@@ -1006,8 +1006,8 @@ class ConfigurationApp(App[None]):
             return
 
         if self.operation_abandoned:
-            self.operation_abandoned = False
             self.command_progress = CommandProgress.INACTIVE
+            self.operation_abandoned = False
             return
 
         self.command_progress = CommandProgress.COMMAND_COMPLETE
@@ -1088,11 +1088,11 @@ class ConfigurationApp(App[None]):
         if self.snapshot_device is None:
             return
 
-        self.update_instruction("Please wait...")
-        await asyncio.sleep(0)
-
         self.command_progress = CommandProgress.WAITING_FOR_READ
         self.operation_abandoned = False
+
+        self.update_instruction("Please wait...")
+        await asyncio.sleep(0)
 
         try:
             engine = ConfigurationEngine.from_file(self.configuration_path())
@@ -1119,8 +1119,8 @@ class ConfigurationApp(App[None]):
             return
 
         if self.operation_abandoned:
-            self.operation_abandoned = False
             self.command_progress = CommandProgress.INACTIVE
+            self.operation_abandoned = False
             return
 
         self.command_progress = CommandProgress.COMMAND_COMPLETE
@@ -1168,11 +1168,11 @@ class ConfigurationApp(App[None]):
         if self.snapshot_device is None:
             return
 
-        self.update_instruction("Please wait...")
-        await asyncio.sleep(0)
-
         self.command_progress = CommandProgress.WAITING_FOR_READ
         self.operation_abandoned = False
+
+        self.update_instruction("Please wait...")
+        await asyncio.sleep(0)
 
         try:
             engine = ConfigurationEngine.from_file(self.configuration_path())
@@ -1194,8 +1194,8 @@ class ConfigurationApp(App[None]):
             return
 
         if self.operation_abandoned:
-            self.operation_abandoned = False
             self.command_progress = CommandProgress.INACTIVE
+            self.operation_abandoned = False
             return
 
         self.command_progress = CommandProgress.COMMAND_COMPLETE
@@ -1458,15 +1458,14 @@ class ConfigurationApp(App[None]):
         engine = ConfigurationEngine.from_file(self.configuration_path())
         repository = self.profile_repository()
 
-        self.operation_abandoned = False
-
         try:
             profile = repository.read(self.compare_profile)
 
+            self.command_progress = CommandProgress.WAITING_FOR_READ
+            self.operation_abandoned = False
+
             self.update_instruction("Please wait...")
             await asyncio.sleep(0)
-
-            self.command_progress = CommandProgress.WAITING_FOR_READ
 
             difference = await asyncio.to_thread(
                 engine.compare,
@@ -1486,8 +1485,8 @@ class ConfigurationApp(App[None]):
             return
 
         if self.operation_abandoned:
-            self.operation_abandoned = False
             self.command_progress = CommandProgress.INACTIVE
+            self.operation_abandoned = False
             return
 
         self.command_progress = CommandProgress.COMMAND_COMPLETE
@@ -1579,14 +1578,14 @@ class ConfigurationApp(App[None]):
             )
             return
 
+        self.command_progress = CommandProgress.WAITING_FOR_READ
+        self.operation_abandoned = False
+
         self.update_instruction(
             "Please wait... Note that Esc is ignored until the command completes.",
         )
 
         await asyncio.sleep(0)
-
-        self.operation_in_progress = True
-        self.operation_abandoned = False
 
         try:
             engine = ConfigurationEngine.from_file(
@@ -1622,9 +1621,11 @@ class ConfigurationApp(App[None]):
             self.mark_device_unavailable(
                 apply_device,
             )
+
             self.command_progress = CommandProgress.COMMAND_COMPLETE
 
             if self.operation_abandoned:
+                self.command_progress = CommandProgress.INACTIVE
                 self.operation_abandoned = False
                 return
 
@@ -1633,11 +1634,12 @@ class ConfigurationApp(App[None]):
             )
             return
 
-        self.command_progress = CommandProgress.COMMAND_COMPLETE
-
         if self.operation_abandoned:
+            self.command_progress = CommandProgress.INACTIVE
             self.operation_abandoned = False
             return
+
+        self.command_progress = CommandProgress.COMMAND_COMPLETE
 
         if difference.is_empty:
             self.update_instruction(
@@ -2263,7 +2265,16 @@ class ConfigurationApp(App[None]):
         event: events.Key,
     ) -> None:
         """Handle keyboard input for command selection and command actions."""
-        # FIXME - is it ok to view help while a worker is busy?
+
+        if event.key == "escape" and self.command_progress == CommandProgress.WAITING_FOR_READ:
+            if self.active_command == Command.DEVICE_APPLY:
+                event.prevent_default()
+                return
+
+            event.prevent_default()
+            self._leave_running_operation()
+            return
+
         if (
             event.key == "question mark"
             and self.command_progress != CommandProgress.WAITING_FOR_READ
@@ -2271,7 +2282,7 @@ class ConfigurationApp(App[None]):
             event.prevent_default()
             self.action_help()
             return
-        # FIXME - seems reasonable
+
         if event.key in {"r", "R"} and self.command_progress == CommandProgress.INACTIVE:
             await self.refresh_devices()
             event.prevent_default()
@@ -2327,16 +2338,6 @@ class ConfigurationApp(App[None]):
             return
 
         if self.profile_delete_active:
-            if event.key == "escape":
-                self.profile_delete_active = False
-                self.show_profile()
-
-                event.prevent_default()
-                return
-
-            if event.key != "enter":
-                return
-
             if self.profile_list_profile is None:
                 return
 
@@ -2613,7 +2614,11 @@ class ConfigurationApp(App[None]):
                     return
 
                 event.prevent_default()
-                await self.show_apply()
+
+                self.operation_task = asyncio.create_task(
+                    self.show_apply(),
+                )
+
                 return
 
             case Command.DEVICE_CAPTURE:
