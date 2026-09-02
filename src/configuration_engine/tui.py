@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from enum import Enum, IntEnum, auto
+from enum import IntEnum
 from importlib.resources import files
 from pathlib import Path
 from typing import ClassVar
@@ -46,12 +46,14 @@ class Command(IntEnum):
     PROGRAM_SETUP = 8
 
 
-class CaptureStep(Enum):
-    """Current step in the capture workflow."""
-
-    PROFILE_NAME = auto()
-    SOURCE_DEVICE = auto()
-    READY = auto()
+class CommandProgress(IntEnum):
+    INACTIVE = 0
+    WAITING_FOR_USER_1 = 1
+    WAITING_FOR_USER_2 = 2
+    WAITING_FOR_USER_3 = 3
+    WAITING_FOR_USER_ENTER = 4
+    WAITING_FOR_READ = 5
+    COMMAND_COMPLETE = 6
 
 
 class ConfigurationApp(App[None]):
@@ -76,16 +78,18 @@ class ConfigurationApp(App[None]):
         self.help_previous_focus: str | None = None
         self.help_previous_title: str | None = None
         self.help_previous_instruction: str | None = None
-        self.operation_in_progress = False
+        self.command_progress = CommandProgress.INACTIVE
+        self.operation_abandoned = False
+        self.operation_task: asyncio.Task[None] | None = None
         self.devices: list[DeviceSummary] = []
         self.device_status: dict[str, str] = {}
         self.active_command: Command | None = None
         self.profile_rename_active = False
         self.profile_delete_active = False
+        self.compare_model_mismatch_pending = False
 
         self.configuration_directory = active_configuration_directory()
 
-        self.capture_step = CaptureStep.PROFILE_NAME
         self.capture_profile_name = ""
         self.capture_device: str | None = None
 
@@ -252,7 +256,7 @@ class ConfigurationApp(App[None]):
                 )
 
                 yield Static(
-                    "Tab: switch window   R: refresh",
+                    "Tab: switch window\nR: refresh",
                     id="devices-instruction",
                 )
 
@@ -390,19 +394,24 @@ class ConfigurationApp(App[None]):
         self,
         message: str | None = None,
     ) -> None:
-        """Update the instruction for the current capture step."""
+        """Update the instruction for the current capture state."""
 
         if message is not None:
             self.update_instruction(message)
             return
 
         messages = {
-            CaptureStep.PROFILE_NAME: ("Enter the profile name, then press Enter."),
-            CaptureStep.SOURCE_DEVICE: ("Select the source device, then press Enter."),
-            CaptureStep.READY: "Press Enter to capture.",
+            CommandProgress.WAITING_FOR_USER_1: ("Enter the profile name, then press Enter."),
+            CommandProgress.WAITING_FOR_USER_2: ("Select the source device, then press Enter."),
+            CommandProgress.WAITING_FOR_USER_ENTER: ("Press Enter to capture."),
         }
 
-        self.update_instruction(messages[self.capture_step])
+        message = messages.get(
+            self.command_progress,
+        )
+
+        if message is not None:
+            self.update_instruction(message)
 
     def show_operation_failure(
         self,
@@ -476,6 +485,7 @@ class ConfigurationApp(App[None]):
         """Start the Profiles Compare workflow."""
 
         self.active_command = Command.PROFILES_COMPARE
+        self.command_progress = CommandProgress.WAITING_FOR_USER_1
 
         self.profile_compare_first = None
         self.profile_compare_second = None
@@ -664,6 +674,8 @@ class ConfigurationApp(App[None]):
         self.profile_compare_show_differences = False
         self.profile_compare_full_closed = False
 
+        self.command_progress = CommandProgress.COMMAND_COMPLETE
+
         table.display = True
         table.focus()
 
@@ -753,13 +765,13 @@ class ConfigurationApp(App[None]):
         """Start the Capture command workflow."""
 
         self.active_command = Command.DEVICE_CAPTURE
+        self.command_progress = CommandProgress.WAITING_FOR_USER_1
 
         self.query_one(
             "#command-device_capture",
             ListItem,
         ).add_class("active-command")
 
-        self.capture_step = CaptureStep.PROFILE_NAME
         self.capture_profile_name = ""
         self.capture_device = None
 
@@ -771,16 +783,14 @@ class ConfigurationApp(App[None]):
         self.query_one("#command-title").display = True
 
         self.query_one("#capture-form").display = True
-
         self.query_one("#device-selector").display = False
-
         self.query_one("#profile-selector").display = False
-
         self.query_one("#snapshot-view").display = False
-
         self.query_one("#compare-view").display = False
 
-        self.update_command_title(self.active_command.name)
+        self.update_command_title(
+            self.active_command.name,
+        )
 
         self.query_one(
             "#capture-device-value",
@@ -803,20 +813,25 @@ class ConfigurationApp(App[None]):
         if self.capture_device is None:
             return
 
+        self.command_progress = CommandProgress.WAITING_FOR_READ
+        self.operation_abandoned = False
+
         self.update_capture_instruction("Please wait...")
         await asyncio.sleep(0)
 
-        self.operation_in_progress = True
-
         try:
-            engine = ConfigurationEngine.from_file(self.configuration_path())
+            engine = ConfigurationEngine.from_file(
+                self.configuration_path(),
+            )
 
             profile = await asyncio.to_thread(
                 engine.capture,
                 self.capture_device,
             )
 
-            self.mark_device_success(self.capture_device)
+            self.mark_device_success(
+                self.capture_device,
+            )
 
             repository = self.profile_repository()
 
@@ -830,17 +845,23 @@ class ConfigurationApp(App[None]):
             OSError,
             TimeoutError,
         ) as exc:
-            self.mark_device_unavailable(self.capture_device)
-            self.show_operation_failure(f"Capture failed: {exc}")
+            self.mark_device_unavailable(
+                self.capture_device,
+            )
+            self.show_operation_failure(
+                f"Capture failed: {exc}",
+            )
             return
 
-        finally:
-            self.operation_in_progress = False
+        if self.operation_abandoned:
+            self.command_progress = CommandProgress.INACTIVE
+            self.operation_abandoned = False
+            return
 
-        self.capture_step = CaptureStep.READY
+        self.command_progress = CommandProgress.COMMAND_COMPLETE
 
         self.update_capture_instruction(
-            f'Profile "{self.capture_profile_name}" captured successfully.\nPress Esc to return.'
+            f'Profile "{self.capture_profile_name}" captured successfully.\nPress Esc to return.',
         )
 
     async def _show_device_selector(self) -> None:
@@ -923,6 +944,7 @@ class ConfigurationApp(App[None]):
 
         self.active_command = Command.DEVICE_SNAPSHOT
         self.snapshot_device = None
+        self.command_progress = CommandProgress.WAITING_FOR_USER_1
 
         self.query_one(
             "#command-device_snapshot",
@@ -937,18 +959,18 @@ class ConfigurationApp(App[None]):
         self.query_one("#command-title").display = True
 
         self.query_one("#capture-form").display = False
-
         self.query_one("#device-selector").display = True
-
         self.query_one("#profile-selector").display = False
-
         self.query_one("#snapshot-view").display = False
-
         self.query_one("#compare-view").display = False
 
-        self.update_command_title(self.active_command.name)
+        self.update_command_title(
+            self.active_command.name,
+        )
 
-        self.update_instruction("Select the device, then press Enter.")
+        self.update_instruction(
+            "Select the device, then press Enter.",
+        )
 
         await self._show_device_selector()
 
@@ -958,10 +980,11 @@ class ConfigurationApp(App[None]):
         if self.snapshot_device is None:
             return
 
+        self.command_progress = CommandProgress.WAITING_FOR_READ
+        self.operation_abandoned = False
+
         self.update_instruction("Please wait...")
         await asyncio.sleep(0)
-
-        self.operation_in_progress = True
 
         try:
             engine = ConfigurationEngine.from_file(self.configuration_path())
@@ -982,8 +1005,12 @@ class ConfigurationApp(App[None]):
             self.show_operation_failure(f"Snapshot failed: {exc}")
             return
 
-        finally:
-            self.operation_in_progress = False
+        if self.operation_abandoned:
+            self.command_progress = CommandProgress.INACTIVE
+            self.operation_abandoned = False
+            return
+
+        self.command_progress = CommandProgress.COMMAND_COMPLETE
 
         lines = [
             f"Backend : {snapshot.backend}",
@@ -1061,10 +1088,11 @@ class ConfigurationApp(App[None]):
         if self.snapshot_device is None:
             return
 
+        self.command_progress = CommandProgress.WAITING_FOR_READ
+        self.operation_abandoned = False
+
         self.update_instruction("Please wait...")
         await asyncio.sleep(0)
-
-        self.operation_in_progress = True
 
         try:
             engine = ConfigurationEngine.from_file(self.configuration_path())
@@ -1090,8 +1118,12 @@ class ConfigurationApp(App[None]):
             self.show_operation_failure(f"Info failed: {exc}")
             return
 
-        finally:
-            self.operation_in_progress = False
+        if self.operation_abandoned:
+            self.command_progress = CommandProgress.INACTIVE
+            self.operation_abandoned = False
+            return
+
+        self.command_progress = CommandProgress.COMMAND_COMPLETE
 
         supported = "Yes" if info.supported else "No"
         interview = info.interview_state or "Unknown"
@@ -1136,10 +1168,11 @@ class ConfigurationApp(App[None]):
         if self.snapshot_device is None:
             return
 
+        self.command_progress = CommandProgress.WAITING_FOR_READ
+        self.operation_abandoned = False
+
         self.update_instruction("Please wait...")
         await asyncio.sleep(0)
-
-        self.operation_in_progress = True
 
         try:
             engine = ConfigurationEngine.from_file(self.configuration_path())
@@ -1160,8 +1193,12 @@ class ConfigurationApp(App[None]):
             self.show_operation_failure(f"Analyze failed: {exc}")
             return
 
-        finally:
-            self.operation_in_progress = False
+        if self.operation_abandoned:
+            self.command_progress = CommandProgress.INACTIVE
+            self.operation_abandoned = False
+            return
+
+        self.command_progress = CommandProgress.COMMAND_COMPLETE
 
         lines = []
 
@@ -1207,12 +1244,13 @@ class ConfigurationApp(App[None]):
         output_view.display = True
         output_view.scroll_home(animate=False)
         output_view.focus()
+
         self.update_instruction("Press Esc to return.")
 
     def action_help(self) -> None:
-        """Show Help unless an operation is in progress."""
+        """Show Help unless a command is waiting for a read."""
 
-        if self.operation_in_progress:
+        if self.command_progress == CommandProgress.WAITING_FOR_READ:
             return
 
         self.show_help()
@@ -1331,6 +1369,7 @@ class ConfigurationApp(App[None]):
             ListItem,
         ).add_class("active-command")
 
+        self.compare_model_mismatch_pending = False
         self.compare_device = None
         self.compare_profile = None
 
@@ -1365,6 +1404,7 @@ class ConfigurationApp(App[None]):
         """Start the Apply command workflow."""
 
         self.active_command = Command.DEVICE_APPLY
+        self.command_progress = CommandProgress.WAITING_FOR_USER_1
 
         self.query_one(
             "#command-device_apply",
@@ -1382,13 +1422,9 @@ class ConfigurationApp(App[None]):
         self.query_one("#command-title").display = True
 
         self.query_one("#capture-form").display = False
-
         self.query_one("#device-selector").display = True
-
         self.query_one("#profile-selector").display = False
-
         self.query_one("#snapshot-view").display = False
-
         self.query_one("#compare-view").display = False
 
         self.update_command_title(
@@ -1397,7 +1433,9 @@ class ConfigurationApp(App[None]):
             self.apply_profile,
         )
 
-        self.update_instruction("Select the device, then press Enter.")
+        self.update_instruction(
+            "Select the device, then press Enter.",
+        )
 
         await self._show_device_selector()
 
@@ -1420,10 +1458,11 @@ class ConfigurationApp(App[None]):
         engine = ConfigurationEngine.from_file(self.configuration_path())
         repository = self.profile_repository()
 
-        self.operation_in_progress = True
-
         try:
             profile = repository.read(self.compare_profile)
+
+            self.command_progress = CommandProgress.WAITING_FOR_READ
+            self.operation_abandoned = False
 
             self.update_instruction("Please wait...")
             await asyncio.sleep(0)
@@ -1445,8 +1484,12 @@ class ConfigurationApp(App[None]):
             self.show_operation_failure(f"Compare failed: {exc}")
             return
 
-        finally:
-            self.operation_in_progress = False
+        if self.operation_abandoned:
+            self.command_progress = CommandProgress.INACTIVE
+            self.operation_abandoned = False
+            return
+
+        self.command_progress = CommandProgress.COMMAND_COMPLETE
 
         table = self.query_one(
             "#compare-view",
@@ -1506,6 +1549,37 @@ class ConfigurationApp(App[None]):
             return
 
         apply_device = self.apply_device
+        repository = self.profile_repository()
+
+        try:
+            profile = repository.read(
+                self.apply_profile,
+            )
+        except (
+            OSError,
+            ValueError,
+        ) as exc:
+            self.show_operation_failure(
+                f"Unable to read profile: {exc}",
+            )
+            return
+
+        device_model = None
+
+        for device in self.devices:
+            if device.friendly_name == apply_device:
+                device_model = device.model_id
+                break
+
+        if device_model is not None and profile.model is not None and device_model != profile.model:
+            self.update_instruction(
+                f"Cannot apply profile.\n"
+                f"Device model: {device_model}   Profile model: {profile.model}",
+            )
+            return
+
+        self.command_progress = CommandProgress.WAITING_FOR_READ
+        self.operation_abandoned = False
 
         self.update_instruction(
             "Please wait... Note that Esc is ignored until the command completes.",
@@ -1513,14 +1587,10 @@ class ConfigurationApp(App[None]):
 
         await asyncio.sleep(0)
 
-        self.operation_in_progress = True
-
         try:
-            engine = ConfigurationEngine.from_file(self.configuration_path())
-
-            repository = self.profile_repository()
-
-            profile = repository.read(self.apply_profile)
+            engine = ConfigurationEngine.from_file(
+                self.configuration_path(),
+            )
 
             def update_apply_progress(message: str) -> None:
                 self.call_from_thread(
@@ -1539,19 +1609,37 @@ class ConfigurationApp(App[None]):
                 run_apply,
             )
 
-            self.mark_device_success(apply_device)
+            self.mark_device_success(
+                apply_device,
+            )
 
         except (
             ValueError,
             OSError,
             TimeoutError,
         ) as exc:
-            self.mark_device_unavailable(apply_device)
-            self.show_operation_failure(f"Apply failed: {exc}")
+            self.mark_device_unavailable(
+                apply_device,
+            )
+
+            self.command_progress = CommandProgress.COMMAND_COMPLETE
+
+            if self.operation_abandoned:
+                self.command_progress = CommandProgress.INACTIVE
+                self.operation_abandoned = False
+                return
+
+            self.show_operation_failure(
+                f"Apply failed: {exc}",
+            )
             return
 
-        finally:
-            self.operation_in_progress = False
+        if self.operation_abandoned:
+            self.command_progress = CommandProgress.INACTIVE
+            self.operation_abandoned = False
+            return
+
+        self.command_progress = CommandProgress.COMMAND_COMPLETE
 
         if difference.is_empty:
             self.update_instruction(
@@ -1792,6 +1880,7 @@ class ConfigurationApp(App[None]):
         ).remove_class("active-command")
 
         self.active_command = None
+        self.command_progress = CommandProgress.INACTIVE
 
         if configuration_directory is None:
             command_list.index = Command.PROGRAM_SETUP
@@ -1850,6 +1939,7 @@ class ConfigurationApp(App[None]):
 
         if self.active_command == Command.DEVICE_SNAPSHOT:
             self.snapshot_device = device_name
+            self.command_progress = CommandProgress.WAITING_FOR_USER_ENTER
 
             self.query_one(
                 "#device-selector",
@@ -1869,6 +1959,7 @@ class ConfigurationApp(App[None]):
 
         if self.active_command == Command.DEVICE_INFO:
             self.snapshot_device = device_name
+            self.command_progress = CommandProgress.WAITING_FOR_USER_ENTER
 
             self.query_one(
                 "#device-selector",
@@ -1888,6 +1979,7 @@ class ConfigurationApp(App[None]):
 
         if self.active_command == Command.DEVICE_ANALYZE:
             self.snapshot_device = device_name
+            self.command_progress = CommandProgress.WAITING_FOR_USER_ENTER
 
             self.query_one(
                 "#device-selector",
@@ -1907,6 +1999,7 @@ class ConfigurationApp(App[None]):
 
         if self.active_command == Command.DEVICE_COMPARE:
             self.compare_device = device_name
+            self.command_progress = CommandProgress.WAITING_FOR_USER_2
 
             self.query_one(
                 "#capture-device-list",
@@ -1925,6 +2018,7 @@ class ConfigurationApp(App[None]):
 
         if self.active_command == Command.DEVICE_APPLY:
             self.apply_device = device_name
+            self.command_progress = CommandProgress.WAITING_FOR_USER_2
 
             self.query_one(
                 "#capture-device-list",
@@ -1957,6 +2051,7 @@ class ConfigurationApp(App[None]):
         if self.active_command == Command.PROFILES_COMPARE:
             if self.profile_compare_first is None:
                 self.profile_compare_first = profile_name
+                self.command_progress = CommandProgress.WAITING_FOR_USER_3
 
                 self.update_command_title(
                     self.active_command.name,
@@ -1970,6 +2065,7 @@ class ConfigurationApp(App[None]):
                 return True
 
             self.profile_compare_second = profile_name
+            self.command_progress = CommandProgress.WAITING_FOR_USER_ENTER
 
             self.query_one(
                 "#profile-selector",
@@ -1990,6 +2086,7 @@ class ConfigurationApp(App[None]):
 
         if self.active_command == Command.DEVICE_COMPARE:
             self.compare_profile = profile_name
+            self.command_progress = CommandProgress.WAITING_FOR_USER_ENTER
 
             self.query_one(
                 "#profile-selector",
@@ -2010,6 +2107,7 @@ class ConfigurationApp(App[None]):
 
         if self.active_command == Command.DEVICE_APPLY:
             self.apply_profile = profile_name
+            self.command_progress = CommandProgress.WAITING_FOR_USER_ENTER
 
             self.query_one(
                 "#profile-selector",
@@ -2054,6 +2152,7 @@ class ConfigurationApp(App[None]):
         command_list.focus()
 
         self.active_command = None
+        self.command_progress = CommandProgress.INACTIVE
 
         self.update_command_title()
         self.update_instruction("Choose a command.")
@@ -2090,18 +2189,6 @@ class ConfigurationApp(App[None]):
     ) -> None:
         """Handle list selections."""
 
-        if event.list_view.id == "command-list":
-            index = event.list_view.index
-
-            if index is None:
-                return
-
-            command = Command(index)
-
-            await self._start_selected_command(command)
-
-            return
-
         if event.list_view.id == "capture-device-list":
             index = event.list_view.index
 
@@ -2123,11 +2210,15 @@ class ConfigurationApp(App[None]):
                 Static,
             ).update(device.friendly_name)
 
-            self.query_one("#device-selector").display = False
+            self.query_one(
+                "#device-selector",
+            ).display = False
 
-            self.query_one("#capture-form").display = True
+            self.query_one(
+                "#capture-form",
+            ).display = True
 
-            self.capture_step = CaptureStep.READY
+            self.command_progress = CommandProgress.WAITING_FOR_USER_ENTER
 
             self.update_capture_instruction()
 
@@ -2147,7 +2238,9 @@ class ConfigurationApp(App[None]):
 
             profile_name = profiles[index]
 
-            self._handle_profile_selection(profile_name)
+            self._handle_profile_selection(
+                profile_name,
+            )
 
             return
 
@@ -2164,6 +2257,7 @@ class ConfigurationApp(App[None]):
                 return
 
             self.profile_list_profile = profiles[index]
+
             self.show_profile()
 
     async def on_key(
@@ -2172,12 +2266,24 @@ class ConfigurationApp(App[None]):
     ) -> None:
         """Handle keyboard input for command selection and command actions."""
 
-        if event.key == "question mark":
+        if event.key == "escape" and self.command_progress == CommandProgress.WAITING_FOR_READ:
+            if self.active_command == Command.DEVICE_APPLY:
+                event.prevent_default()
+                return
+
+            event.prevent_default()
+            self._leave_running_operation()
+            return
+
+        if (
+            event.key == "question mark"
+            and self.command_progress != CommandProgress.WAITING_FOR_READ
+        ):
             event.prevent_default()
             self.action_help()
             return
 
-        if event.key in {"r", "R"}:
+        if event.key in {"r", "R"} and self.command_progress == CommandProgress.INACTIVE:
             await self.refresh_devices()
             event.prevent_default()
             return
@@ -2232,16 +2338,6 @@ class ConfigurationApp(App[None]):
             return
 
         if self.profile_delete_active:
-            if event.key == "escape":
-                self.profile_delete_active = False
-                self.show_profile()
-
-                event.prevent_default()
-                return
-
-            if event.key != "enter":
-                return
-
             if self.profile_list_profile is None:
                 return
 
@@ -2373,6 +2469,14 @@ class ConfigurationApp(App[None]):
             event.prevent_default()
             return
 
+        # ------------------------------------------------------------
+        # Common command Escape handling
+        # ------------------------------------------------------------
+
+        # ------------------------------------------------------------
+        # Command selection
+        # ------------------------------------------------------------
+
         if event.key != "enter":
             return
 
@@ -2393,6 +2497,20 @@ class ConfigurationApp(App[None]):
             event.prevent_default()
             return
 
+        if (
+            self.active_command
+            in {
+                Command.DEVICE_INFO,
+                Command.DEVICE_SNAPSHOT,
+                Command.DEVICE_ANALYZE,
+                Command.DEVICE_COMPARE,
+                Command.DEVICE_CAPTURE,
+                Command.DEVICE_APPLY,
+            }
+            and self.command_progress != CommandProgress.WAITING_FOR_USER_ENTER
+        ):
+            return
+
         match self.active_command:
             case Command.PROFILE_LIST:
                 if self.profile_list_profile is None:
@@ -2401,6 +2519,7 @@ class ConfigurationApp(App[None]):
                 event.prevent_default()
                 self.show_profile()
                 return
+
             case Command.PROFILES_COMPARE:
                 if self.profile_compare_full_closed:
                     event.prevent_default()
@@ -2416,34 +2535,77 @@ class ConfigurationApp(App[None]):
                 event.prevent_default()
                 self.show_profiles_compare()
                 return
+
             case Command.DEVICE_INFO:
                 if self.snapshot_device is None:
                     return
 
                 event.prevent_default()
-                await self.show_info()
+                self.operation_task = asyncio.create_task(
+                    self.show_info(),
+                )
+
                 return
+
             case Command.DEVICE_SNAPSHOT:
                 if self.snapshot_device is None:
                     return
 
                 event.prevent_default()
-                await self.show_snapshot()
+                self.operation_task = asyncio.create_task(
+                    self.show_snapshot(),
+                )
+
                 return
+
             case Command.DEVICE_ANALYZE:
                 if self.snapshot_device is None:
                     return
 
                 event.prevent_default()
-                await self.show_analyze()
+                self.operation_task = asyncio.create_task(
+                    self.show_analyze(),
+                )
+
                 return
+
             case Command.DEVICE_COMPARE:
                 if self.compare_profile is None:
                     return
 
+                if self.compare_model_mismatch_pending:
+                    self.compare_model_mismatch_pending = False
+
+                    event.prevent_default()
+                    await self.show_compare()
+                    return
+
+                device_model, profile_model = self._get_compare_models()
+
+                if (
+                    device_model is not None
+                    and profile_model is not None
+                    and device_model != profile_model
+                ):
+                    self.compare_model_mismatch_pending = True
+
+                    self.update_instruction(
+                        f"Device model is {device_model}; "
+                        f"profile model is {profile_model}.\n"
+                        "Models differ. Press Enter to compare anyway "
+                        "or Esc to cancel.",
+                    )
+
+                    event.prevent_default()
+                    return
+
                 event.prevent_default()
-                await self.show_compare()
+                self.operation_task = asyncio.create_task(
+                    self.show_compare(),
+                )
+
                 return
+
             case Command.DEVICE_APPLY:
                 if self.apply_device is None:
                     return
@@ -2452,25 +2614,97 @@ class ConfigurationApp(App[None]):
                     return
 
                 event.prevent_default()
-                await self.show_apply()
+
+                self.operation_task = asyncio.create_task(
+                    self.show_apply(),
+                )
+
                 return
 
-        if self.active_command != Command.DEVICE_CAPTURE:
+            case Command.DEVICE_CAPTURE:
+                if self.capture_device is None:
+                    return
+
+                event.prevent_default()
+                self.operation_task = asyncio.create_task(
+                    self.capture_profile(),
+                )
+
+                return
+
+    def _leave_running_operation(self) -> None:
+        """Leave the operation interface while the operation continues."""
+
+        if self.command_progress != CommandProgress.WAITING_FOR_READ:
             return
 
-        if self.capture_step != CaptureStep.READY:
+        if self.active_command == Command.DEVICE_APPLY:
             return
 
-        if self.capture_device is None:
+        command = self.active_command
+
+        if command is None:
             return
 
-        event.prevent_default()
-        await self.capture_profile()
+        self.operation_abandoned = True
+
+        if self.operation_task is not None and not self.operation_task.done():
+            self.operation_task.cancel()
+
+        self.operation_task = None
+
+        command_list = self.query_one(
+            "#command-list",
+            ListView,
+        )
+
+        self._return_to_command_list(
+            command_list,
+            command,
+            f"#command-{command.name.lower()}",
+        )
+
+    def _get_compare_models(
+        self,
+    ) -> tuple[str | None, str | None]:
+        """Return the selected device and profile model numbers."""
+
+        device_model = None
+
+        if self.compare_device is not None:
+            for device in self.devices:
+                if device.friendly_name == self.compare_device:
+                    device_model = device.model_id
+                    break
+
+        profile_model = None
+
+        if self.compare_profile is not None:
+            repository = self.profile_repository()
+
+            try:
+                profile = repository.read(
+                    self.compare_profile,
+                )
+            except (
+                OSError,
+                ValueError,
+            ):
+                return device_model, None
+
+            profile_model = profile.model
+
+        return device_model, profile_model
 
     async def action_back(self) -> None:
         """Return to the previous interface level."""
 
-        if self.operation_in_progress:
+        if self.command_progress == CommandProgress.WAITING_FOR_READ:
+            if self.active_command == Command.DEVICE_APPLY:
+                return
+
+            self._leave_running_operation()
+
             return
 
         help_view = self.query_one(
@@ -2559,7 +2793,7 @@ class ConfigurationApp(App[None]):
             if self.active_command is not None:
                 command_list.index = self.active_command
 
-                command_id = f"#command-{self.active_command}"
+                command_id = f"#command-{self.active_command.name.lower()}"
                 self.query_one(
                     command_id,
                     ListItem,
@@ -2568,11 +2802,13 @@ class ConfigurationApp(App[None]):
             self.query_one("#command-title").display = False
 
             self.snapshot_device = None
+            self.compare_model_mismatch_pending = False
             self.compare_device = None
             self.compare_profile = None
             self.apply_device = None
             self.apply_profile = None
             self.active_command = None
+            self.command_progress = CommandProgress.INACTIVE
 
             self.update_command_title()
             self.update_instruction("Choose a command.")
@@ -2600,6 +2836,46 @@ class ConfigurationApp(App[None]):
             return
 
         # ------------------------------------------------------------
+        # Snapshot device selection -> command list
+        # ------------------------------------------------------------
+
+        if (
+            self.active_command == Command.DEVICE_SNAPSHOT
+            and self.snapshot_device is not None
+            and not snapshot_view.display
+            and not selector.display
+        ):
+            self._return_to_command_list(
+                command_list,
+                Command.DEVICE_SNAPSHOT,
+                "#command-device_snapshot",
+            )
+
+            self.snapshot_device = None
+
+            return
+
+        # ------------------------------------------------------------
+        # Info device selection -> command list
+        # ------------------------------------------------------------
+
+        if (
+            self.active_command == Command.DEVICE_INFO
+            and self.snapshot_device is not None
+            and not snapshot_view.display
+            and not selector.display
+        ):
+            self._return_to_command_list(
+                command_list,
+                Command.DEVICE_INFO,
+                "#command-device_info",
+            )
+
+            self.snapshot_device = None
+
+            return
+
+        # ------------------------------------------------------------
         # Info result -> command list
         # ------------------------------------------------------------
 
@@ -2620,6 +2896,7 @@ class ConfigurationApp(App[None]):
 
             self.snapshot_device = None
             self.active_command = None
+            self.command_progress = CommandProgress.INACTIVE
 
             self.update_command_title()
             self.update_instruction("Choose a command.")
@@ -2647,6 +2924,7 @@ class ConfigurationApp(App[None]):
 
             self.snapshot_device = None
             self.active_command = None
+            self.command_progress = CommandProgress.INACTIVE
 
             self.update_command_title()
             self.update_instruction("Choose a command.")
@@ -2841,6 +3119,7 @@ class ConfigurationApp(App[None]):
                 "#command-device_compare",
             )
 
+            self.compare_model_mismatch_pending = False
             self.compare_device = None
             self.compare_profile = None
 
@@ -2862,6 +3141,7 @@ class ConfigurationApp(App[None]):
                 "#command-device_compare",
             )
 
+            self.compare_model_mismatch_pending = False
             self.compare_device = None
             self.compare_profile = None
 
@@ -2880,14 +3160,34 @@ class ConfigurationApp(App[None]):
                 "#command-device_compare",
             )
 
+            self.compare_model_mismatch_pending = False
             self.compare_device = None
             self.compare_profile = None
 
             return
 
         # ------------------------------------------------------------
-        # Device Apply selection -> command list before apply
+        # Device Apply device selection -> command list
         # ------------------------------------------------------------
+
+        if (
+            self.active_command == Command.DEVICE_APPLY
+            and self.apply_device is not None
+            and self.apply_profile is None
+            and not compare_view.display
+        ):
+            profile_selector.display = False
+
+            self._return_to_command_list(
+                command_list,
+                Command.DEVICE_APPLY,
+                "#command-device_apply",
+            )
+
+            self.apply_device = None
+            self.apply_profile = None
+
+            return
 
         if (
             self.active_command == Command.DEVICE_APPLY
@@ -3002,12 +3302,13 @@ class ConfigurationApp(App[None]):
 
             command_list.focus()
 
-            self.capture_step = CaptureStep.PROFILE_NAME
+            self.command_progress = CommandProgress.INACTIVE
             self.capture_profile_name = ""
             self.capture_device = None
 
             self.snapshot_device = None
 
+            self.compare_model_mismatch_pending = False
             self.compare_device = None
             self.compare_profile = None
 
@@ -3015,6 +3316,7 @@ class ConfigurationApp(App[None]):
             self.apply_profile = None
 
             self.active_command = None
+            self.command_progress = CommandProgress.INACTIVE
 
             self.update_command_title()
             self.update_instruction("Choose a command.")
@@ -3040,8 +3342,7 @@ class ConfigurationApp(App[None]):
             return
 
         self.capture_profile_name = event.value.strip()
-
-        self.capture_step = CaptureStep.SOURCE_DEVICE
+        self.command_progress = CommandProgress.WAITING_FOR_USER_2
 
         self.update_capture_instruction()
 

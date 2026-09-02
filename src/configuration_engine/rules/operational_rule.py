@@ -19,21 +19,28 @@ class OperationalRule(RecommendationRule):
     ) -> Recommendation | None:
         """Return a recommendation for an operational control property."""
 
-        if property.name not in {
-            # These are writable controls representing the device's current
-            # operating state, rather than persistent configuration.
-            "state",
-            "brightness",
-        }:
-            return None
+        if property.name.casefold() == "state":
+            if property.access != ACCESS_READ_WRITE:
+                return None
 
-        if property.access != ACCESS_READ_WRITE:
-            return None
+            return Recommendation(
+                property=property,
+                include=True,
+                confidence=Confidence.CERTAIN,
+                reason=RecommendationReason.OPERATIONAL,
+                apply=False,
+            )
 
-        return Recommendation(
-            property=property,
-            include=True,
-            confidence=Confidence.CERTAIN,
-            reason=RecommendationReason.OPERATIONAL,
-            apply=True,
-        )
+        if property.name.casefold() == "brightness":
+            if property.access != ACCESS_READ_WRITE:
+                return None
+
+            return Recommendation(
+                property=property,
+                include=True,
+                confidence=Confidence.CERTAIN,
+                reason=RecommendationReason.OPERATIONAL,
+                apply=True,
+            )
+
+        return None
