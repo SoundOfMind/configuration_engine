@@ -8,13 +8,21 @@ Screen {
 }
 
 #devices {
-    width: 32;
+    width: 40;
     border: solid $primary;
+}
+
+#devices:focus-within {
+    border: heavy $accent;
 }
 
 #command {
     width: 1fr;
     border: solid $primary;
+}
+
+#command:focus-within {
+    border: heavy $accent;
 }
 
 .pane-title {
@@ -25,6 +33,21 @@ Screen {
 
 #device-list {
     height: 1fr;
+}
+
+#device-list > ListItem.-highlight {
+    background: transparent;
+    color: $text;
+    text-style: none;
+}
+
+#device-list > ListItem.-highlight.device-success {
+    color: #00ff00;
+    text-style: bold;
+}
+
+#device-list > ListItem.-highlight.device-unavailable {
+    color: orange;
 }
 
 #devices-instruction {
