@@ -434,7 +434,10 @@ class ConfigurationApp(App[None]):
 
         await profile_list.clear()
 
-        profiles = repository.list()
+        profiles = sorted(
+            repository.list(),
+            key=str.casefold,
+        )
 
         if not profiles:
             self.update_instruction(
@@ -907,7 +910,10 @@ class ConfigurationApp(App[None]):
         await selector.clear()
 
         repository = self.profile_repository()
-        profiles = repository.list()
+        profiles = sorted(
+            repository.list(),
+            key=str.casefold,
+        )
 
         if not profiles:
             self.update_instruction(
@@ -1669,8 +1675,7 @@ class ConfigurationApp(App[None]):
             ListView,
         )
 
-        if not device_list.has_focus:
-            return
+        devices_had_focus = device_list.has_focus
 
         try:
             devices = sorted(
@@ -1725,7 +1730,9 @@ class ConfigurationApp(App[None]):
                     break
 
         device_list.index = new_index
-        device_list.focus()
+
+        if devices_had_focus:
+            device_list.focus()
 
         self.update_instruction(
             f"{len(self.devices)} devices found.",
@@ -2165,21 +2172,30 @@ class ConfigurationApp(App[None]):
 
         match command:
             case Command.PROFILE_LIST:
+                self.profile_list_profile = None
                 await self.start_profile_list()
+
             case Command.PROFILES_COMPARE:
                 await self.start_profiles_compare()
+
             case Command.DEVICE_INFO:
                 await self.start_info()
+
             case Command.DEVICE_SNAPSHOT:
                 await self.start_snapshot()
+
             case Command.DEVICE_ANALYZE:
                 await self.start_analyze()
+
             case Command.DEVICE_CAPTURE:
                 self.start_capture()
+
             case Command.DEVICE_COMPARE:
                 await self.start_compare()
+
             case Command.DEVICE_APPLY:
                 await self.start_apply()
+
             case Command.PROGRAM_SETUP:
                 self.show_settings()
 
@@ -2188,6 +2204,38 @@ class ConfigurationApp(App[None]):
         event: ListView.Selected,
     ) -> None:
         """Handle list selections."""
+
+        if event.list_view.id == "command-list":
+            match event.list_view.index:
+                case Command.PROFILE_LIST:
+                    self.profile_list_profile = None
+                    await self.start_profile_list()
+
+                case Command.PROFILES_COMPARE:
+                    await self.start_profiles_compare()
+
+                case Command.DEVICE_INFO:
+                    await self.start_info()
+
+                case Command.DEVICE_SNAPSHOT:
+                    await self.start_snapshot()
+
+                case Command.DEVICE_ANALYZE:
+                    await self.start_analyze()
+
+                case Command.DEVICE_CAPTURE:
+                    self.start_capture()
+
+                case Command.DEVICE_COMPARE:
+                    await self.start_compare()
+
+                case Command.DEVICE_APPLY:
+                    await self.start_apply()
+
+                case Command.PROGRAM_SETUP:
+                    self.show_settings()
+
+            return
 
         if event.list_view.id == "capture-device-list":
             index = event.list_view.index
@@ -2238,9 +2286,7 @@ class ConfigurationApp(App[None]):
 
             profile_name = profiles[index]
 
-            self._handle_profile_selection(
-                profile_name,
-            )
+            self._handle_profile_selection(profile_name)
 
             return
 
@@ -2282,6 +2328,26 @@ class ConfigurationApp(App[None]):
             event.prevent_default()
             self.action_help()
             return
+
+        if event.key in {"up", "down"}:
+            device_list = self.query_one("#device-list", ListView)
+            if device_list.has_focus:
+                focused = self.focused
+
+                if isinstance(focused, VerticalScroll):
+                    if event.key == "up":
+                        focused.scroll_up(
+                            animate=False,
+                            immediate=True,
+                        )
+                    elif event.key == "down":
+                        focused.scroll_down(
+                            animate=False,
+                            immediate=True,
+                        )
+
+                    event.prevent_default()
+                    return
 
         if event.key in {"r", "R"} and self.command_progress == CommandProgress.INACTIVE:
             await self.refresh_devices()
