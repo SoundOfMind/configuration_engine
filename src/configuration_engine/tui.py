@@ -2279,7 +2279,10 @@ class ConfigurationApp(App[None]):
                 return
 
             repository = self.profile_repository()
-            profiles = repository.list()
+            profiles = sorted(
+                repository.list(),
+                key=str.casefold,
+            )
 
             if index >= len(profiles):
                 return
@@ -2297,7 +2300,10 @@ class ConfigurationApp(App[None]):
                 return
 
             repository = self.profile_repository()
-            profiles = repository.list()
+            profiles = sorted(
+                repository.list(),
+                key=str.casefold,
+            )
 
             if index >= len(profiles):
                 return
@@ -2578,14 +2584,6 @@ class ConfigurationApp(App[None]):
             return
 
         match self.active_command:
-            case Command.PROFILE_LIST:
-                if self.profile_list_profile is None:
-                    return
-
-                event.prevent_default()
-                self.show_profile()
-                return
-
             case Command.PROFILES_COMPARE:
                 if self.profile_compare_full_closed:
                     event.prevent_default()
