@@ -25,6 +25,7 @@ from configuration_engine.credentials import MqttCredentials
 from configuration_engine.credentials_loader import CredentialsLoader
 from configuration_engine.mqtt_configuration import MqttConfiguration
 from configuration_engine.setup_helpers import (
+    test_mqtt_connection,
     validate_mqtt_settings,
     write_location_pointer,
 )
@@ -65,7 +66,7 @@ class SettingsScreen(ModalScreen[Path | None]):
     }
 
     .settings-error {
-        color: $error;
+        color: orange;
         margin-top: 1;
     }
 
@@ -301,7 +302,7 @@ class SettingsScreen(ModalScreen[Path | None]):
                     id="settings-host",
                 ),
                 Label(
-                    "MQTT port",
+                    "MQTT port (use port 1883)",
                     classes="settings-label",
                 ),
                 Input(
@@ -466,6 +467,17 @@ class SettingsScreen(ModalScreen[Path | None]):
 
         if self.step == 2:
             if not self._read_mqtt_values():
+                return
+
+            try:
+                test_mqtt_connection(
+                    host=self.mqtt_host,
+                    port=int(self.mqtt_port),
+                    username=self.mqtt_username,
+                    password=self.mqtt_password,
+                )
+            except RuntimeError as exc:
+                self.query_one("#settings-error", Static).update(str(exc))
                 return
 
             self.show_confirmation_step()

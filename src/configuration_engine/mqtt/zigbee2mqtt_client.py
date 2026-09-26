@@ -38,11 +38,21 @@ class Zigbee2MqttClient:
         self._client.on_message = self._on_message
 
     def connect(self, timeout: float = 5.0) -> None:
-        self._client.connect(self._host, self._port)
-        self._client.loop_start()
+        """Connect to the MQTT broker."""
 
-        if not self._connected.wait(timeout):
-            raise TimeoutError("Timed out waiting for MQTT connection.")
+        try:
+            self._client.connect(
+                self._host,
+                self._port,
+            )
+            self._client.loop_start()
+
+            if not self._connected.wait(timeout):
+                self._client.loop_stop()
+                raise TimeoutError(f"MQTT connection timed out after {timeout} seconds.")
+        except Exception:
+            self._client.loop_stop()
+            raise
 
     def disconnect(self) -> None:
         self._client.disconnect()

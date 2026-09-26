@@ -382,13 +382,21 @@ class ConfigurationApp(App[None]):
     def update_instruction(
         self,
         message: str,
+        error: bool = False,
     ) -> None:
         """Update the instruction at the bottom of the command pane."""
 
-        self.query_one(
+        instruction = self.query_one(
             "#instruction",
             Static,
-        ).update(message)
+        )
+
+        if error:
+            instruction.add_class("instruction-error")
+        else:
+            instruction.remove_class("instruction-error")
+
+        instruction.update(message)
 
     def update_capture_instruction(
         self,
@@ -1775,12 +1783,14 @@ class ConfigurationApp(App[None]):
         except (
             OSError,
             ValueError,
+            RuntimeError,
             TimeoutError,
         ) as exc:
             self.devices = []
 
             self.update_instruction(
                 f"Unable to load devices: {exc}",
+                error=True,
             )
 
             return

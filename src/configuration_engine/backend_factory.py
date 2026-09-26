@@ -30,7 +30,14 @@ def create_backend(
         password=configuration.mqtt.password,
     )
 
-    client.connect()
+    try:
+        client.connect()
+    except Exception as exc:
+        raise RuntimeError(
+            f"Unable to connect to the MQTT broker at "
+            f"{configuration.mqtt.host}:{configuration.mqtt.port}. "
+            "Check the MQTT settings in your configuration."
+        ) from exc
 
     on_mqtt_get_property_discovered: Callable[[str, str, str], None] | None = None
 
