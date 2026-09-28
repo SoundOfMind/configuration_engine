@@ -160,6 +160,17 @@ class CredentialsLoader:
                 )
 
     @staticmethod
+    def ensure_read_only(path: str | Path) -> None:
+        """Ensure an existing credentials file is read-only."""
+
+        credentials_path = Path(path)
+
+        if not credentials_path.is_file():
+            return
+
+        CredentialsLoader._make_read_only(credentials_path)
+
+    @staticmethod
     def _make_read_only(path: Path) -> None:
         current_mode = stat.S_IMODE(path.stat().st_mode)
         path.chmod(current_mode & ~0o222)

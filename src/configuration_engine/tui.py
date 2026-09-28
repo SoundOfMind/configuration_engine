@@ -6,10 +6,12 @@ from importlib.resources import files
 from pathlib import Path
 from typing import ClassVar
 
+from rich.console import ConsoleRenderable, RichCast
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.events import Unmount
 from textual.widgets import (
     DataTable,
     Header,
@@ -21,13 +23,22 @@ from textual.widgets import (
 )
 
 from configuration_engine.configuration_engine import ConfigurationEngine
+from configuration_engine.configuration_loader import ConfigurationLoader
 from configuration_engine.configuration_paths import (
     active_configuration_directory,
+    application_lock_file,
     configuration_file,
+    credentials_file,
+    default_configuration_directory,
     profiles_directory,
 )
+from configuration_engine.credentials_loader import CredentialsLoader
 from configuration_engine.device_summary import DeviceSummary
 from configuration_engine.first_run import FirstRunScreen
+from configuration_engine.locks import (
+    FileLock,
+    LockUnavailableError,
+)
 from configuration_engine.profile_difference import ProfileDifference
 from configuration_engine.profile_repository import ProfileRepository
 from configuration_engine.settings import SettingsScreen
@@ -87,21 +98,18 @@ class ConfigurationApp(App[None]):
         self.profile_rename_active = False
         self.profile_delete_active = False
         self.compare_model_mismatch_pending = False
-
-        self.configuration_directory = active_configuration_directory()
+        self.configuration_directory = default_configuration_directory()
+        self.application_lock: FileLock | None = None
 
         self.capture_profile_name = ""
         self.capture_device: str | None = None
-
         self.snapshot_device: str | None = None
-
         self.compare_device: str | None = None
         self.compare_profile: str | None = None
         self.profile_list_profile: str | None = None
         self.profile_compare_first: str | None = None
         self.profile_compare_second: str | None = None
         self.profile_compare_show_differences = False
-
         self.apply_device: str | None = None
         self.apply_profile: str | None = None
 
@@ -122,6 +130,16 @@ class ConfigurationApp(App[None]):
         """Return the application's configuration file path."""
 
         return configuration_file(self.configuration_directory)
+
+    def _configuration_directory(self) -> Path:
+        """Return the initialized configuration directory."""
+
+        if self.configuration_directory is None:
+            raise RuntimeError(
+                "Configuration directory has not been initialized.",
+            )
+
+        return self.configuration_directory
 
     def profile_repository(self) -> ProfileRepository:
         """Return the application's profile repository."""
@@ -1751,7 +1769,49 @@ class ConfigurationApp(App[None]):
 
         self.query_one("#command-title").display = False
 
-        configuration_path = configuration_file(self.configuration_directory)
+        self.application_lock = FileLock(
+            application_lock_file(),
+            blocking=False,
+        )
+
+        try:
+            self.application_lock.acquire()
+        except LockUnavailableError:
+            self.notify(
+                "Another instance of the application is already running.",
+                severity="warning",
+            )
+            self.exit()
+            return
+
+        try:
+            self.configuration_directory = active_configuration_directory()
+        except (OSError, TypeError, ValueError) as exc:
+            self.hide_navigation_chrome()
+            self.update_instruction(
+                f"Unable to determine the active configuration directory: {exc}",
+                error=True,
+            )
+            return
+
+        try:
+            ConfigurationLoader.ensure_read_only(
+                configuration_file(self.configuration_directory),
+            )
+            CredentialsLoader.ensure_read_only(
+                credentials_file(self.configuration_directory),
+            )
+        except OSError as exc:
+            self.hide_navigation_chrome()
+            self.update_instruction(
+                f"Unable to protect the configuration files: {exc}",
+                error=True,
+            )
+            return
+
+        configuration_path = configuration_file(
+            self.configuration_directory,
+        )
 
         if not configuration_path.is_file():
             self.hide_navigation_chrome()
@@ -3421,6 +3481,33 @@ class ConfigurationApp(App[None]):
         self.update_capture_instruction()
 
         await self.show_capture_device_selector()
+
+    def exit(
+        self,
+        result: None = None,
+        return_code: int = 0,
+        message: ConsoleRenderable | RichCast | str | None = None,
+    ) -> None:
+        """Release the application lock and exit."""
+
+        if self.application_lock is not None:
+            self.application_lock.release()
+            self.application_lock = None
+
+        super().exit(
+            result=result,
+            return_code=return_code,
+            message=message,
+        )
+
+    def on_unmount(self, event: Unmount) -> None:
+        """Release the application lock when the app is unmounted."""
+
+        del event
+
+        if self.application_lock is not None:
+            self.application_lock.release()
+            self.application_lock = None
 
 
 def main() -> None:

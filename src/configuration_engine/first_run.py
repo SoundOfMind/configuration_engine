@@ -144,11 +144,7 @@ class FirstRunScreen(ModalScreen[Path | None]):
 
     {self.configuration_directory}
 
-    Configuration Engine will store its files in this directory.
-
-    If you choose another location, Configuration Engine will not
-    move or copy existing files. You are responsible for moving
-    existing files if necessary."""
+    Configuration Engine will store its files in this directory."""
         )
 
         self._replace_controls(

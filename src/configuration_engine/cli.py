@@ -1,20 +1,55 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from functools import wraps
 from pathlib import Path
+from typing import Any
 
 import typer
 
 from configuration_engine.configuration_engine import ConfigurationEngine
 from configuration_engine.configuration_paths import (
+    application_lock_file,
     configuration_file,
     profiles_directory,
 )
 from configuration_engine.device_definition import DeviceProperty
 from configuration_engine.device_summary import DeviceSummary
+from configuration_engine.locks import FileLock, LockUnavailableError
 from configuration_engine.profile_reader import ProfileReader
 from configuration_engine.profile_repository import ProfileRepository
 
 from . import __version__
+
+
+def with_application_lock[T: Callable[..., Any]](
+    function: T,
+) -> T:
+    """Run a CLI command while holding the application lock."""
+
+    @wraps(function)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        lock = FileLock(
+            application_lock_file(),
+            blocking=False,
+        )
+
+        try:
+            lock.acquire()
+        except LockUnavailableError:
+            typer.echo(
+                "Configuration Engine is already running. Please use the other CE window.",
+                err=True,
+            )
+            raise typer.Exit(code=1) from None
+
+        try:
+            return function(*args, **kwargs)
+        finally:
+            lock.release()
+
+    return wrapper  # type: ignore[return-value]
+
 
 app = typer.Typer(help="Deterministic configuration management for home automation devices")
 
@@ -26,6 +61,7 @@ def version() -> None:
 
 
 @app.command()
+@with_application_lock
 def snapshot(
     device_id: list[str],
     verbose: bool = typer.Option(
@@ -74,6 +110,7 @@ def snapshot(
 
 
 @app.command()
+@with_application_lock
 def devices(
     config: Path | None = None,
 ) -> None:
@@ -94,6 +131,7 @@ def devices(
 
 
 @app.command()
+@with_application_lock
 def info(
     device: list[str],
     verbose: bool = typer.Option(
@@ -137,6 +175,7 @@ def info(
 
 
 @app.command()
+@with_application_lock
 def capture(
     profile_name: str,
     device: str,
@@ -164,6 +203,7 @@ def capture(
 
 
 @app.command()
+@with_application_lock
 def compare(
     device: str,
     profile_name: str,
@@ -216,6 +256,7 @@ def compare(
 
 
 @app.command()
+@with_application_lock
 def apply(
     device: str,
     profile_name: str,
@@ -259,6 +300,7 @@ def apply(
 
 
 @app.command()
+@with_application_lock
 def profiles(
     config: Path | None = None,
 ) -> None:
@@ -284,6 +326,7 @@ def profiles(
 
 
 @app.command()
+@with_application_lock
 def rename(
     old_name: str,
     new_name: str,
@@ -307,6 +350,7 @@ def rename(
 
 
 @app.command()
+@with_application_lock
 def delete(
     profile_name: str,
     config: Path | None = None,
@@ -383,6 +427,7 @@ def _print_property(
 
 
 @app.command()
+@with_application_lock
 def analyze(
     device_id: list[str],
     config: Path | None = None,

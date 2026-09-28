@@ -2,75 +2,16 @@ from __future__ import annotations
 
 import os
 import stat
-import sys
 import tempfile
-import types
 from pathlib import Path
-from typing import Any, Self
+from typing import Any
 
 import yaml
 
 from configuration_engine.backend_configuration import BackendConfiguration
 from configuration_engine.configuration import Configuration
+from configuration_engine.locks import FileLock
 from configuration_engine.mqtt_configuration import MqttConfiguration
-
-
-class _FileLock:
-    """Cross-platform exclusive lock backed by a separate lock file."""
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._stream: Any = None
-
-    def __enter__(self) -> Self:
-        self._stream = self._path.open("a+b")
-
-        if self._stream.seek(0, os.SEEK_END) == 0:
-            self._stream.write(b"\0")
-            self._stream.flush()
-
-        self._stream.seek(0)
-
-        if sys.platform == "win32":
-            import msvcrt
-
-            msvcrt.locking(self._stream.fileno(), msvcrt.LK_LOCK, 1)
-        else:
-            import fcntl
-
-            fcntl.flock(
-                self._stream.fileno(),
-                fcntl.LOCK_EX,
-            )
-
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_value: BaseException | None,
-        traceback: types.TracebackType | None,
-    ) -> None:
-
-        del exc_type, exc_value, traceback
-
-        assert self._stream is not None
-
-        if sys.platform == "win32":
-            import msvcrt
-
-            self._stream.seek(0)
-            msvcrt.locking(self._stream.fileno(), msvcrt.LK_UNLCK, 1)
-        else:
-            import fcntl
-
-            fcntl.flock(
-                self._stream.fileno(),
-                fcntl.LOCK_UN,
-            )
-
-        self._stream.close()
-        self._stream = None
 
 
 class ConfigurationLoader:
@@ -102,7 +43,7 @@ class ConfigurationLoader:
 
         document = ConfigurationLoader._to_document(configuration)
 
-        with _FileLock(
+        with FileLock(
             ConfigurationLoader._lock_path(configuration_path),
         ):
             if configuration_path.exists():
@@ -125,7 +66,7 @@ class ConfigurationLoader:
 
         document = ConfigurationLoader._to_document(configuration)
 
-        with _FileLock(ConfigurationLoader._lock_path(configuration_path)):
+        with FileLock(ConfigurationLoader._lock_path(configuration_path)):
             ConfigurationLoader._require_read_only(configuration_path)
             current_document = ConfigurationLoader._read_document(configuration_path)
             ConfigurationLoader._validate_document(current_document)
@@ -149,7 +90,7 @@ class ConfigurationLoader:
         configuration_path = Path(path)
         ConfigurationLoader._require_read_only(configuration_path)
 
-        with _FileLock(ConfigurationLoader._lock_path(configuration_path)):
+        with FileLock(ConfigurationLoader._lock_path(configuration_path)):
             ConfigurationLoader._require_read_only(configuration_path)
             document = ConfigurationLoader._read_document(configuration_path)
             ConfigurationLoader._validate_document(document)
@@ -245,6 +186,17 @@ class ConfigurationLoader:
     @staticmethod
     def _backup_path(path: Path) -> Path:
         return path.with_name(f"{path.name}.bak")
+
+    @staticmethod
+    def ensure_read_only(path: str | Path) -> None:
+        """Ensure an existing configuration file is read-only."""
+
+        configuration_path = Path(path)
+
+        if not configuration_path.is_file():
+            return
+
+        ConfigurationLoader._make_read_only(configuration_path)
 
     @staticmethod
     def _require_read_only(path: Path) -> None:

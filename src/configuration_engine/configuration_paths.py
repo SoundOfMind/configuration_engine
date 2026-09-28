@@ -6,6 +6,7 @@ from pathlib import Path
 import yaml
 
 APPLICATION_DIRECTORY_NAME = "configuration_engine"
+APPLICATION_LOCK_FILE_NAME = "configuration_engine.lock"
 CONFIGURATION_FILE_NAME = "config.yaml"
 CREDENTIALS_FILE_NAME = "credentials.yaml"
 PROFILES_DIRECTORY_NAME = "profiles"
@@ -33,6 +34,12 @@ def location_file() -> Path:
     return default_configuration_directory() / LOCATION_FILE_NAME
 
 
+def application_lock_file() -> Path:
+    """Return the application lifetime lock file."""
+
+    return default_configuration_directory() / APPLICATION_LOCK_FILE_NAME
+
+
 def active_configuration_directory() -> Path:
     """Return the directory containing the active configuration."""
 
@@ -41,8 +48,11 @@ def active_configuration_directory() -> Path:
     if not pointer.exists():
         return default_configuration_directory()
 
-    with pointer.open("r", encoding="utf-8") as file:
-        data = yaml.safe_load(file)
+    try:
+        with pointer.open("r", encoding="utf-8") as file:
+            data = yaml.safe_load(file)
+    except yaml.YAMLError as exc:
+        raise ValueError("Invalid configuration location file.") from exc
 
     if not isinstance(data, dict):
         raise TypeError("Invalid configuration location file.")
