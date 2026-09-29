@@ -1781,7 +1781,7 @@ class ConfigurationApp(App[None]):
                 "Another instance of the application is already running.",
                 severity="warning",
             )
-            self.exit()
+            self.exit(return_code=1)
             return
 
         try:
@@ -3513,7 +3513,9 @@ class ConfigurationApp(App[None]):
 def main() -> None:
     """Run the Configuration Engine terminal application."""
 
-    ConfigurationApp().run()
+    app = ConfigurationApp()
+    app.run()
+    raise SystemExit(app.return_code or 0)
 
 
 if __name__ == "__main__":
