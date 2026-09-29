@@ -37,7 +37,19 @@ def test_cli_command_refuses_when_application_lock_is_held() -> None:
     assert "Configuration Engine is already running." in result.output
 
 
-def test_cli_command_releases_application_lock() -> None:
+def test_cli_command_releases_application_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeEngine:
+        def devices(self) -> list:
+            return []
+
+    monkeypatch.setattr(
+        ConfigurationEngine,
+        "from_file",
+        lambda config: FakeEngine(),
+    )
+
     result = runner.invoke(
         cli.app,
         ["devices"],
