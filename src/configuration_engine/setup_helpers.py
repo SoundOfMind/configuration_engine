@@ -9,6 +9,7 @@ from configuration_engine.configuration_paths import (
     default_configuration_directory,
     location_file,
 )
+from configuration_engine.mqtt.zigbee2mqtt_client import Zigbee2MqttClient
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +53,32 @@ def validate_mqtt_settings(
         username=username,
         password=password,
     )
+
+
+def test_mqtt_connection(
+    host: str,
+    port: int,
+    username: str,
+    password: str,
+) -> None:
+    """Test the MQTT connection using the supplied settings."""
+
+    client = Zigbee2MqttClient(
+        host=host,
+        port=port,
+        username=username,
+        password=password,
+    )
+
+    try:
+        client.connect()
+    except Exception as exc:
+        raise RuntimeError(
+            f"Unable to connect to the MQTT broker at {host}:{port}. Check the MQTT settings."
+        ) from exc
+    finally:
+        if client.is_connected:
+            client.disconnect()
 
 
 def write_location_pointer(directory: Path) -> None:

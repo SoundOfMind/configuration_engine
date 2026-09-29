@@ -11,7 +11,8 @@ import yaml
 
 from configuration_engine.backend_configuration import BackendConfiguration
 from configuration_engine.configuration import Configuration
-from configuration_engine.configuration_loader import ConfigurationLoader, _FileLock
+from configuration_engine.configuration_loader import ConfigurationLoader
+from configuration_engine.locks import FileLock
 from configuration_engine.mqtt_configuration import MqttConfiguration
 
 
@@ -32,7 +33,7 @@ def _hold_lock(
     ready: multiprocessing.synchronize.Event,
     release: multiprocessing.synchronize.Event,
 ) -> None:
-    with _FileLock(Path(path)):
+    with FileLock(Path(path)):
         ready.set()
         release.wait()
 

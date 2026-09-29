@@ -173,10 +173,14 @@ Screen {
 }
 
 #instruction {
-    height: 2;
+    height: 3;
     padding: 0 1;
     text-style: bold;
     color: yellow;
+}
+
+.instruction-error {
+    color: orange;
 }
 
 Button.-style-default {

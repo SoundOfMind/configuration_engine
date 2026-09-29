@@ -7,6 +7,8 @@ from typer.testing import CliRunner
 
 from configuration_engine import cli
 from configuration_engine.configuration_engine import ConfigurationEngine
+from configuration_engine.configuration_paths import application_lock_file
+from configuration_engine.locks import FileLock
 from configuration_engine.profile import Profile
 from configuration_engine.profile_difference import (
     ProfileDifference,
@@ -14,6 +16,86 @@ from configuration_engine.profile_difference import (
 )
 
 runner = CliRunner()
+
+
+def test_cli_command_refuses_when_application_lock_is_held() -> None:
+    lock = FileLock(
+        application_lock_file(),
+        blocking=False,
+    )
+    lock.acquire()
+
+    try:
+        result = runner.invoke(
+            cli.app,
+            ["devices"],
+        )
+    finally:
+        lock.release()
+
+    assert result.exit_code == 1
+    assert "Configuration Engine is already running." in result.output
+
+
+def test_cli_command_releases_application_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeEngine:
+        def devices(self) -> list:
+            return []
+
+    monkeypatch.setattr(
+        ConfigurationEngine,
+        "from_file",
+        lambda config: FakeEngine(),
+    )
+
+    result = runner.invoke(
+        cli.app,
+        ["devices"],
+    )
+
+    assert result.exit_code == 0
+
+    lock = FileLock(
+        application_lock_file(),
+        blocking=False,
+    )
+
+    try:
+        lock.acquire()
+    finally:
+        lock.release()
+
+
+def test_cli_releases_application_lock_after_command_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_from_file(config: object) -> NoReturn:
+        raise RuntimeError("configuration failed")
+
+    monkeypatch.setattr(
+        ConfigurationEngine,
+        "from_file",
+        fail_from_file,
+    )
+
+    result = runner.invoke(
+        cli.app,
+        ["snapshot", "Test Device"],
+    )
+
+    assert result.exit_code != 0
+
+    lock = FileLock(
+        application_lock_file(),
+        blocking=False,
+    )
+
+    try:
+        lock.acquire()
+    finally:
+        lock.release()
 
 
 def test_snapshot_reports_missing_device_without_traceback(
