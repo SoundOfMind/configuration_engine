@@ -63,14 +63,7 @@ Write-Host ""
 Write-Host "Prerequisite check passed." -ForegroundColor Green
 Write-Host ""
 
-$installParent = Read-Host "Enter the parent directory for Configuration Engine"
-
-if ([string]::IsNullOrWhiteSpace($installParent)) {
-    throw "An installation directory is required."
-}
-
-$installParent = [Environment]::ExpandEnvironmentVariables($installParent)
-$installParent = [System.IO.Path]::GetFullPath($installParent)
+$installParent = (Get-Location).Path
 
 Write-Host ""
 Write-Host "Installation parent:"

@@ -50,24 +50,122 @@ For the 0.1.0 release, the tested environment is Home Assistant using Zigbee2MQT
 
 ## Installation
 
-Clone the repository and create a Python virtual environment:
+### Windows
 
-    git clone <repository-url>
+#### Standard installation
+
+1. Install Git for Windows and Python 3.14 or newer.
+2. Open PowerShell and change to the directory where you want Configuration Engine installed.
+
+For example:
+
+    cd "D:\Git Projects"
+
+3. Download the installer:
+
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/SoundOfMind/configuration_engine/main/bootstrap_ce.ps1" -OutFile ".\bootstrap_ce.ps1"
+
+4. Run the installer:
+
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\bootstrap_ce.ps1"
+
+The installer creates the `configuration_engine` directory in the current directory, creates the Python virtual environment, installs Configuration Engine and its dependencies, and creates a Configuration Engine shortcut on the Windows Desktop.
+
+No administrator privileges are required. The installer does not permanently change the PowerShell execution policy.
+
+#### Development installation
+
+If you want to develop Configuration Engine or create your own variants, clone the repository instead of using the standard installer:
+
+    git clone https://github.com/SoundOfMind/configuration_engine.git
+
     cd configuration_engine
+
+Create the development virtual environment:
+
     python -m venv .venv
-    .venv\Scripts\Activate.ps1
 
-Install Configuration Engine:
-
-    python -m pip install .
-
-For development and testing, install the development dependencies instead:
+Install Configuration Engine with the development dependencies:
 
     python -m pip install -e ".[dev]"
 
+### Linux
+
+#### Standard installation
+
+Clone the repository:
+
+    git clone https://github.com/SoundOfMind/configuration_engine.git
+
+Change to the repository directory:
+
+    cd configuration_engine
+
+Create the virtual environment:
+
+    python3 -m venv .venv
+
+Install Configuration Engine:
+
+    .venv/bin/python -m pip install -e "."
+
+Start Configuration Engine:
+
+    .venv/bin/python -m configuration_engine.tui
+
+#### Development installation
+
+If you want to develop Configuration Engine or create your own variants, use the same setup with the development dependencies:
+
+    .venv/bin/python -m pip install -e ".[dev]"
+
+## Updating an Existing Installation
+
+If you already have a Configuration Engine installation, update it from the repository root (e.g. `D:\Git Projects\configuration_engine`).
+
+### Windows
+
+For a standard installation:
+
+    git pull
+    .\.venv\Scripts\python.exe -m pip install -e "."
+
+For a development installation:
+
+    git pull
+    .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+
+### Linux
+
+For a standard installation:
+
+    git pull
+    .venv/bin/python -m pip install -e "."
+
+For a development installation:
+
+    git pull
+    .venv/bin/python -m pip install -e ".[dev]"
+
+## Starting Configuration Engine
+
+### Windows
+
+For a normal installation, use the Configuration Engine Desktop shortcut.
+
+For a development installation, run:
+
+    .venv\Scripts\python.exe -m configuration_engine.tui
+
+### Linux
+
+From the repository root:
+
+    .venv/bin/python -m configuration_engine.tui
+
 ## First-time setup
 
-Start Configuration Engine with:
+Start Configuration Engine by double-clicking the CE icon, or with:
 
     python -m configuration_engine.tui
 
