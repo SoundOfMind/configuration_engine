@@ -180,7 +180,7 @@ class Zigbee2MqttClient:
         handler = self._handlers.get(message.topic)
 
         if handler is not None:
-            handler(message.payload)
+            handler(bytes(message.payload))
 
     def wait_for_message(
         self,
